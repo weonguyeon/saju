@@ -2,4 +2,3 @@ flask
 korean-lunar-calendar
 openai
 python-dotenv
-gunicorn

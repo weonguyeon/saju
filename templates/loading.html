@@ -1,65 +1,119 @@
 <!DOCTYPE html>
-<html class="dark" lang="ko">
+<html lang="ko">
 
 <head>
-    <meta charset="utf-8" />
-    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-    <title>분석 중... | 별하</title>
-    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com" rel="preconnect" />
-    <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap"
-        rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
-        rel="stylesheet" />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    backgroundImage: {
-                        'stardust': "url('https://placeholder.pics/svg/300/transparent/transparent?text=Stardust%20Pattern'), radial-gradient(circle at 50% 0%, #2a2a4a 0%, #0a0a12 60%)",
-                    }
-                },
-            },
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>운명을 읽는 중 - 별하</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: linear-gradient(180deg, #0a0a12 0%, #151525 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-family: 'Pretendard', sans-serif;
         }
-    </script>
+
+        .mystic-spinner {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin-bottom: 3rem;
+        }
+
+        .mystic-spinner::before,
+        .mystic-spinner::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            border-top-color: #7c4dff;
+            animation: spin 2s linear infinite;
+        }
+
+        .mystic-spinner::after {
+            border-top-color: #9333ea;
+            animation: spin 3s linear infinite reverse;
+            transform: scale(0.8);
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .loading-text {
+            font-size: 1.6rem;
+            font-weight: bold;
+            background: linear-gradient(90deg, #7c4dff, #9333ea);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        .loading-text.visible {
+            opacity: 1;
+        }
+
+        .sub-text {
+            margin-top: 1.5rem;
+            color: #9ca3af;
+            font-size: 1.1rem;
+        }
+    </style>
 </head>
 
-<body class="bg-stardust-effect text-white flex items-center justify-center min-h-screen">
-
-    <div class="glass-card text-center p-12 rounded-3xl max-w-md w-full mx-4 fade-in">
-        <div class="relative w-24 h-24 mx-auto mb-8">
-            <div
-                class="absolute inset-0 border-4 border-t-purple-500 border-r-transparent border-b-blue-500 border-l-transparent rounded-full animate-spin">
-            </div>
-            <div class="absolute inset-0 flex items-center justify-center">
-                <span class="material-symbols-outlined text-4xl text-white animate-pulse">auto_awesome</span>
-            </div>
-        </div>
-
-        <h2 class="text-2xl font-bold mb-2">운명을 분석하고 있습니다</h2>
-        <p class="text-gray-400 text-sm mb-8">잠시만 기다려주세요, 별들이 당신의 이야기를 읽고 있습니다.<br>(최대 1~2분 소요될 수 있습니다)</p>
-
-        <!-- Hidden Form to Auto Submit -->
-        <form id="hiddenForm" action="/result" method="POST">
-            {% for key, value in data.items() %}
-            <input type="hidden" name="{{ key }}" value="{{ value }}">
-            {% endfor %}
-        </form>
+<body>
+    <div class="mystic-spinner"></div>
+    <div class="msg-container">
+        <div id="loading-msg" class="loading-text visible">하늘의 별을 읽고 있습니다...</div>
     </div>
+    <div class="sub-text">잠시만 기다려 주세요. 당신의 운명을 비추는 중입니다.</div>
+
+    <form id="auto-form" action="/result" method="POST" style="display: none;">
+        {% for key, value in data.items() %}
+        <input type="hidden" name="{{ key }}" value="{{ value }}">
+        {% endfor %}
+    </form>
 
     <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            const form = document.getElementById('hiddenForm');
-            // Give a small delay for the animation to be seen, then submit
-            setTimeout(() => {
-                form.submit();
-            }, 1500);
-        });
+        const messages = [
+            "하늘의 별을 읽고 있습니다...",
+            "당신의 사주 원국을 해독 중입니다...",
+            "10년의 대운 흐름을 살피고 있습니다...",
+            "깊이 있는 심층 조언을 갈무리하고 있습니다...",
+            "당신의 인생 지도를 완성 중입니다..."
+        ];
+        let idx = 0;
+        const msgEl = document.getElementById('loading-msg');
+        function rotate() {
+            msgEl.classList.remove('visible');
+            setTimeout(() => { idx = (idx + 1) % messages.length; msgEl.textContent = messages[idx]; msgEl.classList.add('visible'); }, 500);
+        }
+        setInterval(rotate, 3000);
+        window.addEventListener('DOMContentLoaded', () => { setTimeout(() => { document.getElementById('auto-form').submit(); }, 300); });
     </script>
-
 </body>
 
 </html>
