@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>별하 (Byeolha) - 분석 결과</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="result-header">
+            <h2>별하 (Byeolha)</h2>
+            <h1><span class="text-gradient">{{ name }}</span>님의 심층 분석 결과</h1>
+            <p style="color: #666; margin-top: 0.5rem; font-size: 1.1rem;">
+                {{ birth_date }} {{ birth_time }} / {{ '남성' if gender == 'male' else '여성' }}
+            </p>
+        </header>
+
+        <!-- Saju Table -->
+        <div class="glass-card">
+            <h3 style="margin-bottom:1rem;">사주 원국표</h3>
+            <table class="saju-table">
+                <thead>
+                    <tr>
+                        <th style="width:10%">구분</th>
+                        <th style="width:22.5%">시주 (Hour)</th>
+                        <th style="width:22.5%">일주 (Day)</th>
+                        <th style="width:22.5%">월주 (Month)</th>
+                        <th style="width:22.5%">년주 (Year)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="label-cell">천간<br><small>(Stem)</small></td>
+                        <td class="{{ pillars.hour.gan_element }}">
+                            <span class="hanja">{{ pillars.hour.gan }}</span>
+                            <div class="ten-god">{{ interp.ten_gods.hour.gan }}</div>
+                        </td>
+                        <td class="{{ pillars.day.gan_element }} me-cell">
+                            <span class="hanja">{{ pillars.day.gan }}</span>
+                            <div class="ten-god">나 (Master)</div>
+                        </td>
+                        <td class="{{ pillars.month.gan_element }}">
+                            <span class="hanja">{{ pillars.month.gan }}</span>
+                            <div class="ten-god">{{ interp.ten_gods.month.gan }}</div>
+                        </td>
+                        <td class="{{ pillars.year.gan_element }}">
+                            <span class="hanja">{{ pillars.year.gan }}</span>
+                            <div class="ten-god">{{ interp.ten_gods.year.gan }}</div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="label-cell">지지<br><small>(Branch)</small></td>
+                        <td class="{{ pillars.hour.zhi_element }}">
+                            <span class="hanja">{{ pillars.hour.zhi }}</span>
+                            <div class="ten-god">{{ interp.ten_gods.hour.zhi }}</div>
+                        </td>
+                        <td class="{{ pillars.day.zhi_element }} me-cell">
+                            <span class="hanja">{{ pillars.day.zhi }}</span>
+                            <div class="ten-god">{{ interp.ten_gods.day.zhi }}</div>
+                        </td>
+                        <td class="{{ pillars.month.zhi_element }}">
+                            <span class="hanja">{{ pillars.month.zhi }}</span>
+                            <div class="ten-god">{{ interp.ten_gods.month.zhi }}</div>
+                        </td>
+                        <td class="{{ pillars.year.zhi_element }}">
+                            <span class="hanja">{{ pillars.year.zhi }}</span>
+                            <div class="ten-god">{{ interp.ten_gods.year.zhi }}</div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="openTab(event, 'basic')">기본 해석</button>
+            <button class="tab-btn" onclick="openTab(event, 'ohaeng')">오행 & 십성</button>
+            <button class="tab-btn" onclick="openTab(event, 'gmhs')">인생의 흐름</button>
+            <button class="tab-btn" onclick="openTab(event, 'daewoon')">대운 (10년)</button>
+        </div>
+
+        <!-- Tab Content 1: Basic -->
+        <div id="basic" class="tab-content active">
+            <!-- Total Summary -->
+            <div class="glass-card" style="border-left: 5px solid var(--primary);">
+                <h3><i class="fa-solid fa-crown"></i> 평생사주 총평</h3>
+                <p style="white-space: pre-line;">{{ interp.total_summary }}</p>
+            </div>
+
+            <!-- Today's Luck -->
+            <div class="glass-card">
+                <h3><i class="fa-solid fa-star"></i> 오늘의 운세</h3>
+                <p class="text-muted">{{ interp.today_luck.date }} {{ interp.today_luck.pillar }}</p>
+                <h4 style="color:var(--accent); margin:0.5rem 0;">{{ interp.today_luck.title }}</h4>
+                <p>{{ interp.today_luck.desc }}</p>
+            </div>
+
+            <!-- Core Personality -->
+            <div class="glass-card">
+                <h3><i class="fa-solid fa-fingerprint"></i> 핵심 성향 (인품)</h3>
+                <p>{{ interp.personality_deep }}</p>
+            </div>
+
+            <!-- Grid: Core Traits (Legacy/Brief) if needed, but using Wealth/Social/Love as per spec -->
+            <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
+                <div class="glass-card">
+                    <h3><i class="fa-solid fa-coins"></i> 재물운 전략</h3>
+                    <p style="font-size: 0.95rem;">{{ interp.wealth_strategy }}</p>
+                </div>
+                <div class="glass-card">
+                    <h3><i class="fa-solid fa-briefcase"></i> 사회적 적성</h3>
+                    <p style="font-size: 0.95rem;">{{ interp.social_analysis }}</p>
+                </div>
+                <div class="glass-card">
+                    <h3><i class="fa-solid fa-heart"></i> 애정운</h3>
+                    <p style="font-size: 0.95rem;">{{ interp.love_romance }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Content 2: Ohaeng -->
+        <div id="ohaeng" class="tab-content">
+            <div class="dashboard-grid">
+                <!-- Radar Chart -->
+                <div class="glass-card">
+                    <h3>오행 균형 (Five Elements)</h3>
+                    <div style="max-width: 400px; margin: 0 auto;">
+                        <canvas id="ohaengChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Analysis -->
+                <div class="glass-card">
+                    <h3><i class="fa-solid fa-scale-balanced"></i> 밸런스 분석</h3>
+                    <p>{{ interp.ohaeng_analysis.balance_text }}</p>
+                    <div class="advice-box">
+                        <h4>맞춤 조언</h4>
+                        <p>{{ interp.advice }}</p>
+                    </div>
+                    <div style="margin-top: 1rem;">
+                        <h4>상세 분포</h4>
+                        <div style="display: flex; gap: 0.5rem; margin-top:0.5rem;">
+                            <div class="elem-item wood">목(Wood)<br>{{ interp.ohaeng_analysis.percentages.wood }}%</div>
+                            <div class="elem-item fire">화(Fire)<br>{{ interp.ohaeng_analysis.percentages.fire }}%</div>
+                            <div class="elem-item earth">토(Earth)<br>{{ interp.ohaeng_analysis.percentages.earth }}%
+                            </div>
+                            <div class="elem-item metal">금(Metal)<br>{{ interp.ohaeng_analysis.percentages.metal }}%
+                            </div>
+                            <div class="elem-item water">수(Water)<br>{{ interp.ohaeng_analysis.percentages.water }}%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Content 3: GMHS (Life Flow) -->
+        <div id="gmhs" class="tab-content">
+            <div class="glass-card">
+                <h3>근묘화실 (생애주기 분석)</h3>
+                <p class="text-muted" style="margin-bottom: 2rem;">인생의 사계절을 년/월/일/시로 풀어낸 해석입니다.</p>
+
+                <div class="timeline">
+                    {% for period in ['year', 'month', 'day', 'hour'] %}
+                    <div class="timeline-item">
+                        <div class="timeline-content glass-card">
+                            <div class="timeline-pillar">
+                                <h3 style="text-transform: capitalize;">{{ interp.gmhs[period].period }}</h3>
+                                <div style="font-size: 1.5rem; font-weight: bold;">
+                                    <span class="hanja {{ interp.gmhs[period].pillar.gan_element }}">{{
+                                        interp.gmhs[period].pillar.gan }}</span>
+                                    <span class="hanja {{ interp.gmhs[period].pillar.zhi_element }}">{{
+                                        interp.gmhs[period].pillar.zhi }}</span>
+                                </div>
+                            </div>
+                            <div class="timeline-desc">
+                                <p>{{ interp.gmhs[period].desc }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Content 4: Daewoon -->
+        <div id="daewoon" class="tab-content">
+            <!-- Daewoon Trend -->
+            <div class="glass-card" style="border-left: 5px solid var(--primary);">
+                <h3><i class="fa-solid fa-chart-line"></i> 대운의 흐름과 방향성</h3>
+                <p style="white-space: pre-line;">{{ interp.daewoon_trend }}</p>
+            </div>
+
+            <!-- 10 Year List -->
+            <div class="glass-card">
+                <h3>10년 대운 상세 분석</h3>
+                {% for dw in interp.daewoon %}
+                {% set parts = dw.text.split(']') %}
+                <div class="dw-card">
+                    <div class="dw-age">{{ dw.age }}세~</div>
+                    <div class="dw-pillar">
+                        <span class="{{ dw.gan_element }}">{{ dw.gan }}</span>
+                        <span class="{{ dw.zhi_element }}">{{ dw.zhi }}</span>
+                    </div>
+                    <div style="flex: 1;">
+                        {% if parts|length > 1 %}
+                        <h4 style="margin: 0; color: var(--text-main);">{{ parts[0] }}]</h4>
+                        <p style="margin: 0.2rem 0 0 0; font-size: 0.95rem; color: var(--text-muted);">{{ parts[1] |
+                            trim }}</p>
+                        {% else %}
+                        <p>{{ dw.text }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab Switching
+        function openTab(evt, tabName) {
+            var contents = document.querySelectorAll('.tab-content');
+            contents.forEach(function (content) {
+                content.style.display = 'none';
+                content.classList.remove('active');
+            });
+
+            var buttons = document.querySelectorAll('.tab-btn');
+            buttons.forEach(function (btn) {
+                btn.classList.remove('active');
+            });
+
+            document.getElementById(tabName).style.display = 'block';
+            document.getElementById(tabName).classList.add('active');
+            evt.currentTarget.classList.add('active');
+        }
+
+        // Chart.js
+        const ohaengData = {{ ohaeng | tojson }};
+        const ctx = document.getElementById('ohaengChart');
+
+        new Chart(ctx.getContext('2d'), {
+            type: 'radar',
+            data: {
+                labels: ['목 (Wood)', '화 (Fire)', '토 (Earth)', '금 (Metal)', '수 (Water)'],
+                datasets: [{
+                    label: '오행 분포',
+                    data: [ohaengData.wood, ohaengData.fire, ohaengData.earth, ohaengData.metal, ohaengData.water],
+                    backgroundColor: 'rgba(59, 130, 246, 0.4)',
+                    borderColor: '#3b82f6',
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: '#3b82f6',
+                    borderWidth: 2,
+                    pointRadius: 4,
+                    pointHoverRadius: 6
+                }]
+            },
+            options: {
+                scales: {
+                    r: {
+                        beginAtZero: true,
+                        suggestedMax: 5,
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        angleLines: { color: 'rgba(0,0,0,0.05)' },
+                        pointLabels: {
+                            font: { family: 'Pretendard', size: 12 },
+                            color: '#666'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { display: false }
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>
