@@ -5,6 +5,7 @@ Flask 웹앱. 만세력 계산(`saju_logic.py`) + AI 풀이(`ai_analysis.py`). �
 ## 실행·검증
 - `PORT=5050 .venv/bin/python app.py` (맥 5000번은 AirPlay 점유)
 - `.venv/bin/python -m pytest -q tests` — 계산·앱·AI 모듈 테스트. 화면 변경 시 Playwright로 375px `scrollWidth` 실측.
+- 정적 파일은 `asset_url('style.css')`(내용 해시 `?v=`)로만 연결 — Cloudflare가 4시간 캐시를 붙여 주소가 안 바뀌면 방문자는 옛 CSS를 본다(2026-10-01).
 - 그래프(막대·띠·게이지)는 요소 존재가 아니라 `getBoundingClientRect` 너비가 값에 비례하는지 실측한다 — 2026-10-01 인라인 span 이라 채움 0px 인 채로 배포한 적 있음.
 - 배포: `bash scripts/deploy-mini.sh` (커밋·push 안 됐으면 거부, 실행 중 프로세스의 `/healthz` sha 대조). 최초 설치는 `scripts/setup-mini.sh`. 개발 의존성은 `requirements-dev.txt`, 운영은 버전 고정 `requirements.txt`.
 
