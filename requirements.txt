@@ -1,4 +1,6 @@
 flask
-korean-lunar-calendar
+lunar_python>=1.4.8
 openai
 python-dotenv
+gunicorn
+pytest

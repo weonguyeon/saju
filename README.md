@@ -1,108 +1,61 @@
-# 별하 (Byeolha) - 사주풀이 프로그램
+# 원구연-무료 사주풀이
 
-<p align="center">
-  <strong>당신의 운명을 비추는 별 ✨</strong>
-</p>
+생년월일과 태어난 시간으로 사주 원국·오행·십성·대운·세운을 계산하고, AI가 풀이를 덧붙이는 무료 웹 서비스입니다.
+운영 주소: https://lab2.shumong.co.kr
 
----
+## 주요 기능
 
-## 📖 소개
+- **절기 기준 만세력**: 입춘·절입 시각을 분 단위로 비교해 연·월주를 정합니다 (`lunar_python`).
+- **한국 시간 보정**: 출생지 경도(지방평균태양시), 1954~61년 UTC+8:30, 서머타임(1948~60·1987~88년)을 IANA 시간대 DB로 자동 반영합니다. 끌 수 있습니다.
+- **입력**: 양력/음력(윤달), 시간 모름(시주 제외), 출생 지역, 자시 처리(야자시/다음날).
+- **원국표**: 시·일·월·연 순, 천간·지지 한자 타일(오행 색), 십성, 지장간(여기·중기·정기), 12운성.
+- **분포**: 오행·십성 막대, 일간을 돕는/빼는 기운 비교.
+- **대운·세운**: 실제 대운수(만 나이)와 순행/역행, 가로 카드에서 고르면 그 10년의 세운 표가 바뀝니다.
+- **AI 풀이**: 총평·성향·재물·일·애정·건강·근묘화실·대운 흐름. 4묶음으로 나눠 동시에 생성하고, 결과 화면은 바로 띄운 뒤 오는 대로 채웁니다. 같은 입력은 캐시로 즉시 보여줍니다.
+- **계산 기준 표기**: 보정 시각·시간대·대운 기준을 결과 하단에 밝힙니다.
 
-**별하(Byeolha)**는 AI 기반 심층 사주 분석 웹 서비스입니다. 전통 명리학의 사주팔자 계산과 현대적인 AI 분석(기본 Claude Code CLI, 선택 GPT-4o)을 결합하여, 풍부하고 개인화된 운세 분석을 제공합니다.
-
----
-
-## ✨ 주요 기능
-
-- **사주 원국 계산**: 년/월/일/시주 자동 계산
-- **오행 분석**: 목/화/토/금/수 분포 및 밸런스 진단
-- **십성 판정**: 8개 글자의 십신(십성) 관계 분석
-- **대운 분석**: 10년 주기 8회 = 80년 운세
-- **근묘화실**: 생애 4단계 (초년/청년/중년/말년) 분석
-- **오늘의 운세**: 일간 기반 맞춤 운세
-- **AI 심층 분석**: Claude Code CLI(기본) 또는 GPT-4o 기반 장문 해석
-
----
-
-## 🚀 빠른 시작
+## 빠른 시작
 
 ```bash
-# 1. 패키지 설치
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-
-# 2. AI 연결 — 기본은 로그인된 Claude Code CLI(claude) 구독을 그대로 사용, API 키 불필요
-#    OpenAI로 돌리려면: echo -e "AI_BACKEND=openai\nOPENAI_API_KEY=sk-..." > .env
-
-# 3. 서버 시작 (맥은 5000번을 AirPlay가 쓰므로 5050)
-.venv/bin/python -c "from app import app; app.run(port=5050)"
-
-# 4. 브라우저 접속
-# http://127.0.0.1:5050
+PORT=5050 .venv/bin/python app.py      # http://127.0.0.1:5050  (맥 5000번은 AirPlay 점유)
+.venv/bin/python -m pytest -q tests    # 테스트
 ```
 
----
+AI 연결은 기본으로 로그인된 Claude Code CLI(`claude -p`)를 씁니다. 환경변수:
 
-## 📁 프로젝트 구조
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `AI_BACKEND` | `claude` | `openai`면 `OPENAI_API_KEY`로 GPT-4o |
+| `CLAUDE_MODEL` | `sonnet` | 실측: sonnet 약 18초 / opus 약 33초 / haiku 약 91초 (4묶음 병렬, 전체 완료 기준) |
+| `CLAUDE_BIN`, `CLAUDE_TIMEOUT` | PATH의 `claude`, 300초 | |
+| `AI_MAX_CONCURRENCY` | 8 | 동시에 도는 claude 프로세스 상한 |
+| `RATE_LIMIT_PER_IP`, `RATE_LIMIT_TOTAL` | 5, 200 | 외부 방문자 하루 AI 풀이 횟수. 로컬 직접 접속·캐시 적중은 차감 안 함 |
+
+## 구조
 
 ```
-├── app.py              # Flask 메인 앱
-├── saju_logic.py       # 사주 계산 로직
-├── ai_analysis.py      # AI 분석 (Claude CLI / GPT-4o)
-├── requirements.txt    # 의존성
-├── .env                # API 키
-├── static/
-│   └── style.css       # 스타일
-└── templates/
-    ├── index.html      # 입력 폼
-    ├── loading.html    # 로딩 화면
-    └── result.html     # 결과 화면
+app.py            라우트·입력 검증·화면용 데이터·사용량 제한
+saju_logic.py     만세력 계산 (절기·시간대·대운·지장간·12운성)
+ai_analysis.py    AI 풀이 (4묶음 병렬·캐시·동시 실행 제한)
+templates/        base / index / result
+static/style.css  라이트·다크 토큰, 오행 색(대비 4.5:1 이상)
+tests/            계산·앱·AI 모듈 테스트
+deploy/, scripts/ 맥미니 launchd·배포 스크립트
 ```
 
----
+`01_`~`07_` 명세 문서는 처음 받은 코드 기준의 초기 문서라 현재 코드와 다릅니다.
 
-## 📄 명세 문서
+## 배포 (맥미니)
 
-| 문서 | 설명 |
-|------|------|
-| [01_프로젝트_개요.md](01_프로젝트_개요.md) | 프로젝트 구조 및 실행 방법 |
-| [02_백엔드_사주로직_명세.md](02_백엔드_사주로직_명세.md) | saju_logic.py 알고리즘 |
-| [03_백엔드_AI분석_명세.md](03_백엔드_AI분석_명세.md) | GPT 프롬프트 및 응답 구조 |
-| [04_백엔드_Flask앱_명세.md](04_백엔드_Flask앱_명세.md) | 라우팅 및 데이터 흐름 |
-| [05_프론트엔드_UI명세.md](05_프론트엔드_UI명세.md) | HTML/CSS 상세 명세 |
-| [06_데이터구조_명세.md](06_데이터구조_명세.md) | 코드 간 데이터 구조 |
-| [07_전체_소스코드.md](07_전체_소스코드.md) | 완전한 소스코드 |
+```bash
+bash scripts/setup-mini.sh    # 최초 1회: 클론·venv·launchd(ai.saju.lab2, 127.0.0.1:4510)·터널 호스트
+bash scripts/deploy-mini.sh   # 이후: push된 main을 pull·재시작하고 배포 커밋 대조
+```
 
----
+DNS는 Cloudflare 대시보드에서 `lab2` CNAME → `<터널ID>.cfargotunnel.com`(프록시 켬)을 직접 추가합니다.
 
-## 🛠️ 기술 스택
+## 주의
 
-- **Backend**: Python Flask
-- **AI**: Claude Code CLI 헤드리스(`claude -p`, 기본) / OpenAI GPT-4o(선택)
-- **Calendar**: korean-lunar-calendar
-- **Frontend**: HTML5, CSS3, JavaScript
-- **Chart**: Chart.js (레이더 차트)
-- **Font**: Pretendard
-- **Icons**: Font Awesome 6.0
-
----
-
-## 🎨 디자인
-
-- **테마**: 파스텔 보라/핑크 그라데이션
-- **스타일**: 글라스모피즘
-- **배경**: 크림색 (#fdfbf7)
-- **액센트**: #a78bfa (보라), #f472b6 (핑크)
-
----
-
-## ⚠️ 주의사항
-
-1. **API 키**: `.env` 파일에 본인의 OpenAI API 키를 설정하세요.
-2. **비용**: Claude CLI는 구독 사용량을 씁니다(분석 1회 약 2분). GPT-4o 백엔드는 API 비용이 발생합니다.
-3. **타임아웃**: AI 분석은 최대 120초까지 소요될 수 있습니다.
-
----
-
-## 📝 라이선스
-
-개인 프로젝트용. 상업적 사용 시 별도 협의 필요.
+- 풀이는 재미와 자기 성찰을 위한 참고 자료입니다.
+- Anthropic 문서상 Free/Pro/Max 구독 로그인으로 다른 사용자 요청을 처리하는 것은 허용되지 않습니다. 공개 운영을 이어가려면 `AI_BACKEND`를 API 키 방식으로 바꾸는 것을 권장합니다.

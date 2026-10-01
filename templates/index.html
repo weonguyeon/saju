@@ -1,100 +1,88 @@
-<!DOCTYPE html>
-<html lang="ko">
+{% extends "base.html" %}
+{% block main %}
+{% set f = form or {} %}
+<p class="intro">태어난 순간의 네 기둥을<br>읽어 드립니다</p>
+<p class="intro-sub">생년월일과 태어난 시간을 넣으면 사주 원국, 오행 균형, 십성, 10년 대운을 계산하고 AI가 풀이를 덧붙입니다. 가입 없이 무료입니다.</p>
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>별하 (Byeolha) - 당신의 운명을 비추다</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        /* 성별 선택 버튼 스타일 */
-        .gender-radio {
-            display: none;
-        }
+<form class="form" action="{{ url_for('result') }}" method="post" novalidate>
+  {% if error %}<p class="error" role="alert" id="form-error">{{ error }}</p>{% endif %}
 
-        .gender-label {
-            flex: 1;
-            padding: 0.9rem 1rem;
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 12px;
-            background: transparent;
-            color: #9ca3af;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-align: center;
-        }
+  <div class="field">
+    <label for="name">이름</label>
+    <input type="text" id="name" name="name" maxlength="20" required autocomplete="name" placeholder="홍길동" value="{{ f.get('name', '') }}"{% if error_field == 'name' %} aria-invalid="true" aria-describedby="form-error"{% endif %}>
+  </div>
 
-        .gender-radio:checked+.gender-label {
-            background: #3b82f6;
-            border-color: #3b82f6;
-            color: white;
-        }
-
-        .gender-label:hover {
-            border-color: #3b82f6;
-        }
-
-        /* 아이콘 컨테이너 */
-        .icon-container {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: rgba(124, 77, 255, 0.15);
-            border: 1px solid rgba(124, 77, 255, 0.3);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 1.5rem auto;
-        }
-
-        .icon-container i {
-            font-size: 2rem;
-            color: white;
-        }
-    </style>
-</head>
-
-<body>
-    <div class="container" style="display: flex; align-items: center; justify-content: center; min-height: 100vh;">
-        <div class="glass-card fade-in" style="width: 100%; max-width: 480px;">
-            <div style="text-align: center; margin-bottom: 2rem;">
-                <div class="icon-container">
-                    <i class="fa-solid fa-sparkles"></i>
-                </div>
-                <h1 class="text-gradient">별하 (Byeolha)</h1>
-                <p style="color: #9ca3af;">당신의 운명을 비추는 신비로운 빛</p>
-            </div>
-            <form action="/loading" method="POST">
-                <div class="form-group">
-                    <label for="name">이름</label>
-                    <input type="text" id="name" name="name" required placeholder="홍길동">
-                </div>
-                <div class="form-group">
-                    <label>성별</label>
-                    <div style="display: flex; gap: 1rem;">
-                        <input type="radio" name="gender" value="male" id="male" class="gender-radio" checked>
-                        <label for="male" class="gender-label">남성</label>
-                        <input type="radio" name="gender" value="female" id="female" class="gender-radio">
-                        <label for="female" class="gender-label">여성</label>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="birth_date">생년월일 (양력)</label>
-                    <input type="date" id="birth_date" name="birth_date" required>
-                </div>
-                <div class="form-group">
-                    <label for="birth_time">태어난 시간</label>
-                    <input type="time" id="birth_time" name="birth_time" required>
-                </div>
-                <button type="submit" class="btn-primary">
-                    운세 확인하기 <i class="fa-solid fa-arrow-right" style="margin-left: 0.5rem;"></i>
-                </button>
-            </form>
-        </div>
+  <fieldset class="field">
+    <legend>성별</legend>
+    <div class="seg">
+      <input type="radio" id="g-m" name="gender" value="male" {% if f.get('gender', 'male') == 'male' %}checked{% endif %}><label for="g-m">남성</label>
+      <input type="radio" id="g-f" name="gender" value="female" {% if f.get('gender') == 'female' %}checked{% endif %}><label for="g-f">여성</label>
     </div>
-</body>
+  </fieldset>
 
-</html>
+  <fieldset class="field">
+    <legend>생년월일</legend>
+    <div class="seg" style="margin-bottom:10px">
+      <input type="radio" id="c-s" name="calendar" value="solar" {% if f.get('calendar', 'solar') == 'solar' %}checked{% endif %}><label for="c-s">양력</label>
+      <input type="radio" id="c-l" name="calendar" value="lunar" {% if f.get('calendar') == 'lunar' %}checked{% endif %}><label for="c-l">음력</label>
+    </div>
+    <div class="row date-row">
+      <input class="y" type="number" name="year" inputmode="numeric" min="1900" max="2100" placeholder="1990" aria-label="태어난 해" required value="{{ f.get('year', '') }}"{% if error_field == 'date' %} aria-invalid="true" aria-describedby="form-error"{% endif %}><span class="unit">년</span>
+      <input type="number" name="month" inputmode="numeric" min="1" max="12" placeholder="5" aria-label="태어난 월" required value="{{ f.get('month', '') }}"{% if error_field == 'date' %} aria-invalid="true" aria-describedby="form-error"{% endif %}><span class="unit">월</span>
+      <input type="number" name="day" inputmode="numeric" min="1" max="31" placeholder="15" aria-label="태어난 일" required value="{{ f.get('day', '') }}"{% if error_field == 'date' %} aria-invalid="true" aria-describedby="form-error"{% endif %}><span class="unit">일</span>
+    </div>
+    <label class="check" id="leap-wrap" {% if f.get('calendar') != 'lunar' %}hidden{% endif %}>
+      <input type="checkbox" name="leap" value="1" {% if f.get('leap') %}checked{% endif %}> 윤달
+    </label>
+  </fieldset>
+
+  <div class="field">
+    <label for="birth_time">태어난 시간</label>
+    <input type="time" id="birth_time" name="birth_time" value="{{ f.get('birth_time', '') }}"{% if error_field == 'birth_time' %} aria-invalid="true" aria-describedby="form-error"{% endif %}>
+    <label class="check"><input type="checkbox" id="time_unknown" name="time_unknown" value="1" {% if f.get('time_unknown') %}checked{% endif %}> 시간을 몰라요</label>
+    <p class="hint">시간을 모르면 시주(태어난 시의 기둥)는 빼고 계산합니다.</p>
+  </div>
+
+  <div class="field">
+    <label for="region">태어난 지역</label>
+    <select id="region" name="region">
+      {% for key, (label, lon) in regions.items() %}
+      <option value="{{ key }}" {% if f.get('region', 'seoul') == key %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <p class="hint">지역의 경도에 맞춰 태양 기준 시각으로 바꿔 시주를 정합니다.</p>
+  </div>
+
+  <details class="options">
+    <summary>계산 방식 바꾸기</summary>
+    <div class="field">
+      <input type="hidden" name="opts" value="1">
+      <label class="check"><input type="checkbox" name="solar_time" value="1" {% if not f.get('opts') or f.get('solar_time') %}checked{% endif %}> 경도·서머타임 보정</label>
+      <p class="hint">켜 두면 서울 기준 약 32분, 서머타임 시기(1948~60년, 1987~88년)는 1시간을 자동으로 뺍니다. 끄면 입력한 시계 시각 그대로 계산합니다.</p>
+    </div>
+    <fieldset class="field radio-list">
+      <legend>밤 11시~자정 사이 출생 (자시)</legend>
+      <label><input type="radio" name="zishi" value="split" {% if f.get('zishi', 'split') == 'split' %}checked{% endif %}> <span>태어난 날 그대로 보기 (야자시)</span></label>
+      <label><input type="radio" name="zishi" value="next" {% if f.get('zishi') == 'next' %}checked{% endif %}> <span>다음 날로 넘겨 보기</span></label>
+    </fieldset>
+  </details>
+
+  <button type="submit" class="btn">사주 보기</button>
+  <p class="privacy">입력한 정보는 데이터베이스에 저장하지 않으며, 풀이를 만드는 데만 씁니다.</p>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    var leapWrap = document.getElementById('leap-wrap');
+    document.querySelectorAll('input[name=calendar]').forEach(function (r) {
+      r.addEventListener('change', function () { leapWrap.hidden = r.value !== 'lunar' || !r.checked; });
+    });
+    var unknown = document.getElementById('time_unknown');
+    var time = document.getElementById('birth_time');
+    function sync() { time.disabled = unknown.checked; }
+    unknown.addEventListener('change', sync); sync();
+  })();
+</script>
+{% endblock %}

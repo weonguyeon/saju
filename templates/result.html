@@ -1,288 +1,270 @@
-<!DOCTYPE html>
-<html lang="ko">
+{% extends "base.html" %}
+{% block title %}{{ inp.name }}님의 사주 — {{ app_title }}{% endblock %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>별하 (Byeolha) - 분석 결과</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
+{% macro tile(gan_or_zhi, element, kind) -%}
+<span class="tile el-{{ element }}"><span class="hj">{{ gan_or_zhi|hanja(kind) }}</span><span class="ko">{{ gan_or_zhi }}</span></span>
+{%- endmacro %}
+{% macro chip(ch, element, kind) -%}
+<span class="chip el-{{ element }}" title="{{ ch }}">{{ ch|hanja(kind) }}</span>
+{%- endmacro %}
 
-<body>
-    <div class="container">
-        <!-- Header -->
-        <header class="result-header">
-            <h2>별하 (Byeolha)</h2>
-            <h1><span class="text-gradient">{{ name }}</span>님의 심층 분석 결과</h1>
-            <p style="color: #9ca3af; margin-top: 0.5rem; font-size: 1.1rem;">
-                {{ birth_date }} {{ birth_time }} / {{ '남성' if gender == 'male' else '여성' }}
-            </p>
-        </header>
+{% macro ai_body(key, group) -%}
+<div class="body" data-ai="{{ key }}" data-group="{{ group }}">
+  {% if ai_state == 'on' %}<span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="state">풀이를 쓰고 있습니다…</span>
+  {% else %}<span class="state">AI 풀이를 불러오지 않았습니다.</span>{% endif %}
+</div>
+{%- endmacro %}
 
-        <!-- Saju Table -->
-        <div class="glass-card">
-            <h3 style="margin-bottom:1rem;">사주 원국표</h3>
-            <table class="saju-table">
-                <thead>
-                    <tr>
-                        <th style="width:10%">구분</th>
-                        <th style="width:22.5%">시주 (Hour)</th>
-                        <th style="width:22.5%">일주 (Day)</th>
-                        <th style="width:22.5%">월주 (Month)</th>
-                        <th style="width:22.5%">년주 (Year)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td class="label-cell">천간<br><small>(Stem)</small></td>
-                        <td class="{{ pillars.hour.gan_element }}">
-                            <span class="hanja">{{ pillars.hour.gan }}</span>
-                            <div class="ten-god">{{ interp.ten_gods.hour.gan }}</div>
-                        </td>
-                        <td class="{{ pillars.day.gan_element }} me-cell">
-                            <span class="hanja">{{ pillars.day.gan }}</span>
-                            <div class="ten-god">나 (Master)</div>
-                        </td>
-                        <td class="{{ pillars.month.gan_element }}">
-                            <span class="hanja">{{ pillars.month.gan }}</span>
-                            <div class="ten-god">{{ interp.ten_gods.month.gan }}</div>
-                        </td>
-                        <td class="{{ pillars.year.gan_element }}">
-                            <span class="hanja">{{ pillars.year.gan }}</span>
-                            <div class="ten-god">{{ interp.ten_gods.year.gan }}</div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="label-cell">지지<br><small>(Branch)</small></td>
-                        <td class="{{ pillars.hour.zhi_element }}">
-                            <span class="hanja">{{ pillars.hour.zhi }}</span>
-                            <div class="ten-god">{{ interp.ten_gods.hour.zhi }}</div>
-                        </td>
-                        <td class="{{ pillars.day.zhi_element }} me-cell">
-                            <span class="hanja">{{ pillars.day.zhi }}</span>
-                            <div class="ten-god">{{ interp.ten_gods.day.zhi }}</div>
-                        </td>
-                        <td class="{{ pillars.month.zhi_element }}">
-                            <span class="hanja">{{ pillars.month.zhi }}</span>
-                            <div class="ten-god">{{ interp.ten_gods.month.zhi }}</div>
-                        </td>
-                        <td class="{{ pillars.year.zhi_element }}">
-                            <span class="hanja">{{ pillars.year.zhi }}</span>
-                            <div class="ten-god">{{ interp.ten_gods.year.zhi }}</div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+{% block main %}
+{% set b = inp.birth %}
+<section class="who">
+  <h1>{{ inp.name }}님의 사주</h1>
+  <p>
+    {% if basis.lunar %}{{ basis.lunar }} (양력 {{ b.year }}년 {{ b.month }}월 {{ b.day }}일){% else %}양력 {{ b.year }}년 {{ b.month }}월 {{ b.day }}일{% endif %}
+    {% if birth_time %}{{ birth_time }}{% else %}시간 모름{% endif %}, {{ '남성' if inp.gender == 'male' else '여성' }}, {{ zodiac }}띠, 만 {{ age }}세
+  </p>
+  {% set core = interp.core.split('\n') %}
+  <div class="keyline">
+    <strong>{{ core[0] }}</strong>
+    <span>{{ core[1] if core|length > 1 else '' }}</span>
+  </div>
+</section>
 
-        <!-- Tabs -->
-        <div class="tabs">
-            <button class="tab-btn active" onclick="openTab(event, 'basic')">기본 해석</button>
-            <button class="tab-btn" onclick="openTab(event, 'ohaeng')">오행 & 십성</button>
-            <button class="tab-btn" onclick="openTab(event, 'gmhs')">인생의 흐름</button>
-            <button class="tab-btn" onclick="openTab(event, 'daewoon')">대운 (10년)</button>
-        </div>
+<h2 id="chart">사주 원국</h2>
+<p class="lead">태어난 해·달·날·시를 하늘(천간)과 땅(지지) 글자 여덟 개로 나타낸 표입니다.</p>
+<div class="chart">
+  <table>
+    <thead>
+      <tr>
+        <th scope="col"><span class="sr-only">구분</span></th>
+        {% for col in table %}
+        <th scope="col" class="{{ 'me-col' if col.key == 'day' }}">{{ col.label }}{% if col.key == 'day' %}<span class="seal" title="일간 = 나">나</span>{% endif %}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <th scope="row">십성</th>
+        {% for col in table %}<td class="god {{ 'me-col' if col.key == 'day' }}">{{ '—' if col.unknown else ('일간' if col.gan_god == '나' else col.gan_god) }}</td>{% endfor %}
+      </tr>
+      <tr>
+        <th scope="row">천간</th>
+        {% for col in table %}<td class="{{ 'me-col' if col.key == 'day' }}">{% if col.unknown %}<span class="unknown">?</span>{% else %}{{ tile(col.pillar.gan, col.pillar.gan_element, 'gan') }}{% endif %}</td>{% endfor %}
+      </tr>
+      <tr>
+        <th scope="row">지지</th>
+        {% for col in table %}<td class="{{ 'me-col' if col.key == 'day' }}">{% if col.unknown %}<span class="unknown">?</span>{% else %}{{ tile(col.pillar.zhi, col.pillar.zhi_element, 'zhi') }}{% endif %}</td>{% endfor %}
+      </tr>
+      <tr>
+        <th scope="row">십성</th>
+        {% for col in table %}<td class="god {{ 'me-col' if col.key == 'day' }}">{{ '—' if col.unknown else col.zhi_god }}</td>{% endfor %}
+      </tr>
+      <tr class="hidden-row rule">
+        <th scope="row">지장간</th>
+        {% for col in table %}<td class="{{ 'me-col' if col.key == 'day' }}">{% if col.unknown %}<span class="small">—</span>{% else %}{% for h in col.hidden %}{{ chip(h.gan, h.element, 'gan') }}{% endfor %}{% endif %}</td>{% endfor %}
+      </tr>
+      <tr>
+        <th scope="row">12운성</th>
+        {% for col in table %}<td class="small {{ 'me-col' if col.key == 'day' }}">{{ '—' if col.unknown else col.stage }}</td>{% endfor %}
+      </tr>
+    </tbody>
+  </table>
+  <p class="chart-note">오른쪽 연주부터 왼쪽 시주 순서로 읽습니다. 십성과 12운성은 일주의 천간(나)을 기준으로 정합니다.{% if inp.time_unknown %} 태어난 시간을 몰라 시주는 비워 두었습니다.{% endif %}</p>
+</div>
 
-        <!-- Tab Content 1: Basic -->
-        <div id="basic" class="tab-content active">
-            <!-- Total Summary -->
-            <div class="glass-card" style="border-left: 5px solid var(--primary);">
-                <h3><i class="fa-solid fa-crown"></i> 평생사주 총평</h3>
-                <p style="white-space: pre-line;">{{ interp.total_summary }}</p>
-            </div>
-
-            <!-- Today's Luck -->
-            <div class="glass-card">
-                <h3><i class="fa-solid fa-star"></i> 오늘의 운세</h3>
-                <p class="text-muted">{{ interp.today_luck.date }} {{ interp.today_luck.pillar }}</p>
-                <h4 style="color:var(--accent); margin:0.5rem 0;">{{ interp.today_luck.title }}</h4>
-                <p>{{ interp.today_luck.desc }}</p>
-            </div>
-
-            <!-- Core Personality -->
-            <div class="glass-card">
-                <h3><i class="fa-solid fa-fingerprint"></i> 핵심 성향 (인품)</h3>
-                <p>{{ interp.personality_deep }}</p>
-            </div>
-
-            <!-- Grid: Core Traits (Legacy/Brief) if needed, but using Wealth/Social/Love as per spec -->
-            <div class="dashboard-grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
-                <div class="glass-card">
-                    <h3><i class="fa-solid fa-coins"></i> 재물운 전략</h3>
-                    <p style="font-size: 0.95rem;">{{ interp.wealth_strategy }}</p>
-                </div>
-                <div class="glass-card">
-                    <h3><i class="fa-solid fa-briefcase"></i> 사회적 적성</h3>
-                    <p style="font-size: 0.95rem;">{{ interp.social_analysis }}</p>
-                </div>
-                <div class="glass-card">
-                    <h3><i class="fa-solid fa-heart"></i> 애정운</h3>
-                    <p style="font-size: 0.95rem;">{{ interp.love_romance }}</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Tab Content 2: Ohaeng -->
-        <div id="ohaeng" class="tab-content">
-            <div class="dashboard-grid">
-                <!-- Radar Chart -->
-                <div class="glass-card">
-                    <h3>오행 균형 (Five Elements)</h3>
-                    <div style="max-width: 400px; margin: 0 auto;">
-                        <canvas id="ohaengChart"></canvas>
-                    </div>
-                </div>
-
-                <!-- Analysis -->
-                <div class="glass-card">
-                    <h3><i class="fa-solid fa-scale-balanced"></i> 밸런스 분석</h3>
-                    <p>{{ interp.ohaeng_analysis.balance_text }}</p>
-                    <div class="advice-box">
-                        <h4>맞춤 조언</h4>
-                        <p>{{ interp.advice }}</p>
-                    </div>
-                    <div style="margin-top: 1rem;">
-                        <h4>상세 분포</h4>
-                        <div style="display: flex; gap: 0.5rem; margin-top:0.5rem;">
-                            <div class="elem-item wood">목(Wood)<br>{{ interp.ohaeng_analysis.percentages.wood }}%</div>
-                            <div class="elem-item fire">화(Fire)<br>{{ interp.ohaeng_analysis.percentages.fire }}%</div>
-                            <div class="elem-item earth">토(Earth)<br>{{ interp.ohaeng_analysis.percentages.earth }}%
-                            </div>
-                            <div class="elem-item metal">금(Metal)<br>{{ interp.ohaeng_analysis.percentages.metal }}%
-                            </div>
-                            <div class="elem-item water">수(Water)<br>{{ interp.ohaeng_analysis.percentages.water }}%
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Tab Content 3: GMHS (Life Flow) -->
-        <div id="gmhs" class="tab-content">
-            <div class="glass-card">
-                <h3>근묘화실 (생애주기 분석)</h3>
-                <p class="text-muted" style="margin-bottom: 2rem;">인생의 사계절을 년/월/일/시로 풀어낸 해석입니다.</p>
-
-                <div class="timeline">
-                    {% for period in ['year', 'month', 'day', 'hour'] %}
-                    <div class="timeline-item">
-                        <div class="timeline-content glass-card">
-                            <div class="timeline-pillar">
-                                <h3 style="text-transform: capitalize;">{{ interp.gmhs[period].period }}</h3>
-                                <div style="font-size: 1.5rem; font-weight: bold;">
-                                    <span class="hanja {{ interp.gmhs[period].pillar.gan_element }}">{{
-                                        interp.gmhs[period].pillar.gan }}</span>
-                                    <span class="hanja {{ interp.gmhs[period].pillar.zhi_element }}">{{
-                                        interp.gmhs[period].pillar.zhi }}</span>
-                                </div>
-                            </div>
-                            <div class="timeline-desc">
-                                <p>{{ interp.gmhs[period].desc }}</p>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-
-        <!-- Tab Content 4: Daewoon -->
-        <div id="daewoon" class="tab-content">
-            <!-- Daewoon Trend -->
-            <div class="glass-card" style="border-left: 5px solid var(--primary);">
-                <h3><i class="fa-solid fa-chart-line"></i> 대운의 흐름과 방향성</h3>
-                <p style="white-space: pre-line;">{{ interp.daewoon_trend }}</p>
-            </div>
-
-            <!-- 10 Year List -->
-            <div class="glass-card">
-                <h3>10년 대운 상세 분석</h3>
-                {% for dw in interp.daewoon %}
-                {% set parts = dw.text.split(']') %}
-                <div class="dw-card">
-                    <div class="dw-age">{{ dw.age }}세~</div>
-                    <div class="dw-pillar">
-                        <span class="{{ dw.gan_element }}">{{ dw.gan }}</span>
-                        <span class="{{ dw.zhi_element }}">{{ dw.zhi }}</span>
-                    </div>
-                    <div style="flex: 1;">
-                        {% if parts|length > 1 %}
-                        <h4 style="margin: 0; color: var(--text-main);">{{ parts[0] }}]</h4>
-                        <p style="margin: 0.2rem 0 0 0; font-size: 0.95rem; color: var(--text-muted);">{{ parts[1] |
-                            trim }}</p>
-                        {% else %}
-                        <p>{{ dw.text }}</p>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
+<h2 id="balance">오행과 십성</h2>
+<p class="lead">여덟 글자에 어떤 기운이 얼마나 들어 있는지 셉니다.</p>
+<div class="bars-grid">
+  <div>
+    <h3>오행 분포</h3>
+    {% set maxc = (elements|map(attribute='count')|max) or 1 %}
+    {% for e in elements %}
+    <div class="bar el-{{ e.key }}">
+      <span class="name tx">{{ e.ko }}</span>
+      <span class="track"><span class="fill" style="width: {{ (e.count / maxc * 100)|round(1) }}%"></span></span>
+      <span class="val">{{ e.count }}개 ({{ e.pct|round|int }}%)</span>
     </div>
+    {% endfor %}
+    <p class="callout">{{ interp.ohaeng_analysis.balance_text }}</p>
+  </div>
+  <div>
+    <h3>십성 분포</h3>
+    {% set maxg = (god_groups|map(attribute='count')|max) or 1 %}
+    {% for g in god_groups %}
+    <div class="bar">
+      <span class="name">{{ g.name }}</span>
+      <span class="track"><span class="fill" style="width: {{ (g.count / maxg * 100)|round(1) }}%"></span></span>
+      <span class="val">{{ g.count }}개</span>
+    </div>
+    <p class="bar-desc">{% for m, n in g.members %}{{ m }} {{ n }}{{ ', ' if not loop.last }}{% endfor %} — {{ g.desc }}</p>
+    {% endfor %}
+    <div class="callout">
+      <strong>{{ strength.label }}</strong>
+      <div class="meter" role="img" aria-label="돕는 기운 {{ strength.support }}개, 빼는 기운 {{ strength.drain }}개">
+        <span class="a" style="flex: {{ strength.support }}"></span><span class="b" style="flex: {{ strength.drain }}"></span>
+      </div>
+      <div class="meter-legend"><span>돕는 기운 {{ strength.support }}개 (나·비겁·인성)</span><span>빼는 기운 {{ strength.drain }}개</span></div>
+    </div>
+  </div>
+</div>
 
-    <script>
-        // Tab Switching
-        function openTab(evt, tabName) {
-            var contents = document.querySelectorAll('.tab-content');
-            contents.forEach(function (content) {
-                content.style.display = 'none';
-                content.classList.remove('active');
-            });
+<h2 id="daewoon">대운과 세운</h2>
+<p class="lead">
+  {% if basis.start_age is not none %}만 {{ basis.start_age }}세({{ basis.start_date.year }}년)부터 10년마다 운의 흐름이 바뀝니다. 카드를 누르면 그 10년의 해마다 운(세운)이 아래에 나옵니다.{% endif %}
+</p>
+<p class="dw-hint">옆으로 밀면 다음 대운이 나옵니다.</p>
+<div class="dw-scroll" id="dw-scroll" role="group" aria-label="10년 대운">
+  {% for dw in daewoon %}
+  <button type="button" class="dw" data-idx="{{ loop.index0 }}" aria-pressed="{{ 'true' if loop.index0 == (current_idx if current_idx >= 0 else 0) else 'false' }}">
+    <div class="age">{{ dw.age }}세</div>
+    <div class="yr">{{ dw.start_year }}~{{ dw.end_year }}</div>
+    <div class="chips">{{ chip(dw.gan, dw.gan_element, 'gan') }}{{ chip(dw.zhi, dw.zhi_element, 'zhi') }}</div>
+    <div class="gods">{{ dw.gan_god }}<br>{{ dw.zhi_god }}<br><span class="small">{{ dw.stage }}</span></div>
+    {% if loop.index0 == current_idx %}<span class="now">지금</span>{% endif %}
+  </button>
+  {% endfor %}
+</div>
+{% for years in seun %}
+{% set dw = daewoon[loop.index0] %}
+<div class="seun" data-seun="{{ loop.index0 }}" {% if loop.index0 != (current_idx if current_idx >= 0 else 0) %}hidden{% endif %}>
+  <h3>{{ dw.gan }}{{ dw.zhi }} 대운 ({{ dw.start_year }}~{{ dw.end_year }})</h3>
+  <p class="state" style="margin:0 0 6px">{{ dw.text.split('] ')[-1] }}</p>
+  <table>
+    <thead><tr><th>연도</th><th>나이</th><th>세운</th><th>천간 십성</th><th>지지 십성</th></tr></thead>
+    <tbody>
+      {% for y in years %}
+      <tr class="{{ 'cur' if y.current }}">
+        <td>{{ y.year }}</td><td>{{ y.age }}세</td>
+        <td>{{ chip(y.gan, y.gan_element, 'gan') }} {{ chip(y.zhi, y.zhi_element, 'zhi') }}</td>
+        <td>{{ y.gan_god }}</td><td>{{ y.zhi_god }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="hint" style="margin-top:8px">세운 나이는 그해 생일이 지난 뒤의 만 나이입니다.</p>
+</div>
+{% endfor %}
+{% if ai_state == 'on' %}
+<details class="reading" style="margin-top:12px">
+  <summary>지금 대운의 흐름 풀이</summary>
+  {{ ai_body('daewoon_trend', 'daewoon') }}
+</details>
+{% endif %}
 
-            var buttons = document.querySelectorAll('.tab-btn');
-            buttons.forEach(function (btn) {
-                btn.classList.remove('active');
-            });
+<h2 id="today">올해와 오늘</h2>
+<div class="today-grid">
+  <div class="today-card">
+    <h3>{{ this_year.year }}년 세운</h3>
+    <div class="pillar">{{ chip(this_year.pillar.gan, this_year.pillar.gan_element, 'gan') }}{{ chip(this_year.pillar.zhi, this_year.pillar.zhi_element, 'zhi') }} <span>{{ this_year.pillar.gan }}{{ this_year.pillar.zhi }}년</span></div>
+    <p>천간은 {{ this_year.gan_god }}, 지지는 {{ this_year.zhi_god }}의 기운으로 들어옵니다.</p>
+  </div>
+  <div class="today-card">
+    <h3>오늘의 기운 <span class="state">{{ interp.today_luck.date }} {{ interp.today_luck.pillar }}</span></h3>
+    <p><strong>{{ interp.today_luck.title }}</strong></p>
+    <p data-ai="today_luck" data-group="summary" data-fallback="1">{{ interp.today_luck.desc }}</p>
+  </div>
+</div>
 
-            document.getElementById(tabName).style.display = 'block';
-            document.getElementById(tabName).classList.add('active');
-            evt.currentTarget.classList.add('active');
-        }
+<h2 id="reading">풀이</h2>
+{% if ai_state == 'limited' %}
+<p class="notice">오늘 AI 풀이 제공량(1인 하루 {{ limits.ip }}회, 전체 하루 {{ limits.total }}회)을 모두 썼습니다. 위의 계산 결과는 그대로 볼 수 있고, AI 풀이는 내일 다시 받을 수 있습니다.</p>
+{% elif ai_state == 'off' %}
+<p class="notice">지금은 AI 풀이를 쓸 수 없습니다. 위의 계산 결과는 그대로 볼 수 있습니다.</p>
+{% else %}
+<p class="lead">AI가 위 계산 결과를 바탕으로 쓴 풀이입니다. 항목마다 준비되는 대로 채워집니다.</p>
+{% endif %}
+{% if ai_state == 'on' %}
+<details class="reading" open><summary>평생 총평</summary>{{ ai_body('total_summary', 'summary') }}</details>
+<details class="reading"><summary>성향과 인품</summary>{{ ai_body('personality_deep', 'summary') }}</details>
+<details class="reading"><summary>재물</summary>{{ ai_body('wealth_strategy', 'domains') }}</details>
+<details class="reading"><summary>일과 대인관계</summary>{{ ai_body('social_analysis', 'domains') }}</details>
+<details class="reading"><summary>애정과 인연</summary>{{ ai_body('love_romance', 'domains') }}</details>
+<details class="reading"><summary>건강과 체질</summary>{{ ai_body('health_analysis', 'domains') }}</details>
+<details class="reading">
+  <summary>생애 흐름 (근묘화실)</summary>
+  {% for key, title in [('year', '초년기 (0~19세), 연주'), ('month', '청년기 (20~39세), 월주'), ('day', '중년기 (40~59세), 일주'), ('hour', '말년기 (60세 이후), 시주')] %}
+  {% if not (key == 'hour' and inp.time_unknown) %}
+  <h3 style="font-size:1rem;margin:4px 16px 0">{{ title }}</h3>
+  {{ ai_body('gmhs.' ~ key, 'life') }}
+  {% endif %}
+  {% endfor %}
+</details>
+{% endif %}
 
-        // Chart.js
-        const ohaengData = {{ ohaeng | tojson }};
-        const ctx = document.getElementById('ohaengChart');
+<h2 id="basis">계산 기준</h2>
+<div class="basis">
+  <dl>
+    {% if basis.lunar %}<dt>입력</dt><dd>{{ basis.lunar }} → 양력 {{ b.year }}-{{ '%02d'|format(b.month) }}-{{ '%02d'|format(b.day) }}</dd>{% endif %}
+    <dt>시간대</dt><dd>출생 당시 한국 표준시 {{ basis.utc }}</dd>
+    {% if basis.clock %}<dt>시주 기준 시각</dt><dd>{% if basis.solar_time %}{{ basis.region }}(동경 {{ basis.longitude }}°) 태양시 {{ basis.clock }} — 입력 {{ birth_time }}에서 경도·서머타임 보정{% else %}입력 시각 {{ basis.clock }} 그대로 (보정 안 함){% endif %}</dd>{% endif %}
+    <dt>연·월 경계</dt><dd>입춘과 각 달의 절입 시각(분 단위) 기준</dd>
+    <dt>자시</dt><dd>{{ basis.zishi }}</dd>
+    <dt>대운</dt><dd>{{ basis.direction }}, 첫 대운 {{ basis.start_date }} (만 {{ basis.start_age }}세). 절입일까지 날수 ÷ 3으로 계산</dd>
+    <dt>지장간</dt><dd>여기·중기·정기 순 (국내 만세력 표)</dd>
+  </dl>
+</div>
 
-        new Chart(ctx.getContext('2d'), {
-            type: 'radar',
-            data: {
-                labels: ['목 (Wood)', '화 (Fire)', '토 (Earth)', '금 (Metal)', '수 (Water)'],
-                datasets: [{
-                    label: '오행 분포',
-                    data: [ohaengData.wood, ohaengData.fire, ohaengData.earth, ohaengData.metal, ohaengData.water],
-                    backgroundColor: 'rgba(124, 77, 255, 0.3)',
-                    borderColor: '#7c4dff',
-                    pointBackgroundColor: '#fff',
-                    pointBorderColor: '#7c4dff',
-                    borderWidth: 2,
-                    pointRadius: 4,
-                    pointHoverRadius: 6
-                }]
-            },
-            options: {
-                scales: {
-                    r: {
-                        beginAtZero: true,
-                        suggestedMax: 5,
-                        grid: { color: 'rgba(255,255,255,0.1)' },
-                        angleLines: { color: 'rgba(255,255,255,0.1)' },
-                        pointLabels: {
-                            font: { family: 'Pretendard', size: 12 },
-                            color: '#9ca3af'
-                        },
-                        ticks: { display: false }
-                    }
-                },
-                plugins: {
-                    legend: { display: false }
-                }
-            }
+<div class="again"><a class="btn" href="{{ url_for('index') }}">다른 사주 보기</a></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  // 대운 카드 ↔ 세운 표
+  var scroller = document.getElementById('dw-scroll');
+  var cards = scroller ? scroller.querySelectorAll('.dw') : [];
+  cards.forEach(function (card) {
+    card.addEventListener('click', function () {
+      cards.forEach(function (c) { c.setAttribute('aria-pressed', c === card ? 'true' : 'false'); });
+      document.querySelectorAll('[data-seun]').forEach(function (t) { t.hidden = t.dataset.seun !== card.dataset.idx; });
+    });
+  });
+  var pressed = scroller && scroller.querySelector('.dw[aria-pressed=true]');
+  if (pressed) scroller.scrollLeft = Math.max(0, pressed.offsetLeft - scroller.offsetLeft - 16);
+
+  // AI 풀이 — 묶음마다 따로 받아서 오는 대로 채운다
+  var analysisId = {{ analysis_id|tojson }};
+  var groups = {{ ai_groups|tojson }};
+  if (!analysisId) return;
+
+  function pick(data, key) {
+    return key.split('.').reduce(function (o, k) { return o && o[k]; }, data);
+  }
+  function fill(el, text) {
+    el.textContent = '';
+    String(text).split(/\n{2,}/).forEach(function (para) {
+      var p = document.createElement('p');
+      p.textContent = para.trim();
+      el.appendChild(p);
+    });
+  }
+  function load(group) {
+    var targets = document.querySelectorAll('[data-group="' + group + '"]');
+    targets.forEach(function (el) {
+      if (!el.dataset.fallback) el.innerHTML = '<span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="state">풀이를 쓰고 있습니다…</span>';
+    });
+    fetch('/api/analysis/' + encodeURIComponent(analysisId) + '/' + group, { method: 'POST' })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.body.error || '풀이를 불러오지 못했습니다.');
+        targets.forEach(function (el) {
+          var v = pick(res.body.data, el.dataset.ai);
+          if (v) { el.dataset.fallback ? (el.textContent = v) : fill(el, v); }
+          else if (!el.dataset.fallback) { el.innerHTML = '<span class="state">이 항목은 풀이가 비어 있습니다.</span>'; }
         });
-    </script>
-</body>
-
-</html>
+      })
+      .catch(function (err) {
+        targets.forEach(function (el) {
+          if (el.dataset.fallback) return;
+          el.textContent = '';
+          var s = document.createElement('p'); s.className = 'state err'; s.textContent = err.message;
+          var b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-ghost'; b.textContent = '다시 불러오기';
+          b.addEventListener('click', function () { load(group); });
+          el.appendChild(s); el.appendChild(b);
+        });
+      });
+  }
+  groups.forEach(load);
+})();
+</script>
+{% endblock %}

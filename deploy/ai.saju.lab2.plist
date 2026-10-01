@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>ai.saju.lab2</string>
+  <key>WorkingDirectory</key><string>/Users/kukumac/Developer/saju</string>
+  <key>ProgramArguments</key><array>
+    <string>/Users/kukumac/Developer/saju/.venv/bin/gunicorn</string>
+    <string>app:app</string>
+    <string>--bind</string><string>127.0.0.1:4510</string>
+    <!-- 분석 캐시·사용량 카운터가 프로세스 메모리에 있으므로 워커는 1개, 스레드로 동시 처리 -->
+    <string>--workers</string><string>1</string>
+    <string>--worker-class</string><string>gthread</string>
+    <string>--threads</string><string>16</string>
+    <string>--timeout</string><string>300</string>
+    <string>--access-logfile</string><string>-</string>
+  </array>
+  <key>EnvironmentVariables</key><dict>
+    <key>PATH</key><string>/Users/kukumac/.local/share/mise/installs/node/24.11.0/bin:/Users/kukumac/.local/share/mise/shims:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HOME</key><string>/Users/kukumac</string>
+    <key>LANG</key><string>ko_KR.UTF-8</string>
+    <key>PYTHONIOENCODING</key><string>utf-8</string>
+    <key>AI_BACKEND</key><string>claude</string>
+    <key>CLAUDE_BIN</key><string>/Users/kukumac/.local/share/mise/installs/node/24.11.0/bin/claude</string>
+    <key>CLAUDE_MODEL</key><string>sonnet</string>
+    <key>RATE_LIMIT_PER_IP</key><string>5</string>
+    <key>RATE_LIMIT_TOTAL</key><string>200</string>
+    <key>AI_MAX_CONCURRENCY</key><string>8</string>
+  </dict>
+  <key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/Users/kukumac/Library/Logs/saju-lab2.log</string>
+  <key>StandardErrorPath</key><string>/Users/kukumac/Library/Logs/saju-lab2.err.log</string>
+</dict></plist>
