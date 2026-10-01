@@ -4,7 +4,8 @@ import time
 from ai_analysis import AIAnalysis, GROUPS
 
 CTX = {'name': 'a', 'gender': '남성', 'birth_context': 'x', 'day_stem': '경', 'pillars_summary': 'p',
-       'ten_stars_list': 't', 'ohaeng_str': 'o', 'current_daewun': 'c', 'next_daewun': 'n', 'today': 'd'}
+       'ten_stars_list': 't', 'ohaeng_str': 'o', 'current_daewun': 'c', 'next_daewun': 'n', 'today': 'd',
+       'ziwei_summary': 'z', 'natal_summary': 'w', 'star_summary': 's'}
 
 
 def make(monkeypatch, delay=0.0):

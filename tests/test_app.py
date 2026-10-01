@@ -23,7 +23,7 @@ def client(monkeypatch):
     monkeypatch.setattr(app_module.ai, 'claude_bin', '/usr/bin/true')
     monkeypatch.setattr(app_module.ai, 'backend', 'claude')
     monkeypatch.setattr(app_module.ai, 'get_group', fake_group)
-    monkeypatch.setattr(app_module.ai, 'is_cached', lambda ctx: False)
+    monkeypatch.setattr(app_module.ai, 'is_cached', lambda ctx, groups=None: False)
     monkeypatch.setattr(app_module, 'quota', app_module.Quota())
     c = app.test_client()
     c.calls = calls
@@ -137,7 +137,7 @@ def test_quota_total(client, monkeypatch):
 
 def test_cached_result_does_not_consume_quota(client, monkeypatch):
     monkeypatch.setattr(app_module, 'LIMIT_PER_IP', 1)
-    monkeypatch.setattr(app_module.ai, 'is_cached', lambda ctx: True)
+    monkeypatch.setattr(app_module.ai, 'is_cached', lambda ctx, groups=None: groups is None)
     hdr = {'CF-Connecting-IP': '203.0.113.9'}
     assert all(_aid(client.post('/result', data=FORM, headers=hdr).get_data(as_text=True)) for _ in range(3))
 
@@ -203,3 +203,72 @@ def test_stylesheet_url_is_versioned(client):
     html = client.get('/').get_data(as_text=True)
     ver = hashlib.sha1(open(app.static_folder + '/style.css', 'rb').read()).hexdigest()[:10]
     assert f'/static/style.css?v={ver}' in html
+
+
+def test_cross_on_cached_page_charges_quota(client, monkeypatch):
+    monkeypatch.setattr(app_module, 'LIMIT_PER_IP', 1)
+    # 자동 묶음은 캐시(차감 없음), 교차 분석은 캐시 아님
+    monkeypatch.setattr(app_module.ai, 'is_cached', lambda ctx, groups=None: groups is None)
+    hdr = {'CF-Connecting-IP': '203.0.113.50'}
+    a = _aid(client.post('/result', data=FORM, headers=hdr).get_data(as_text=True))
+    b = _aid(client.post('/result', data=FORM, headers=hdr).get_data(as_text=True))
+    assert client.post(f'/api/analysis/{a}/cross', headers=hdr).status_code == 200    # 1회 차감
+    assert client.post(f'/api/analysis/{a}/cross', headers=hdr).status_code == 200    # 같은 분석은 추가 차감 없음
+    assert client.post(f'/api/analysis/{b}/cross', headers=hdr).status_code == 429    # 다른 분석은 한도 초과
+
+
+def test_cross_not_auto_loaded(client):
+    html = client.post('/result', data=FORM).get_data(as_text=True)
+    m = re.search(r'var groups = (\[[^\]]*\])', html)
+    assert m and 'cross' not in m.group(1)
+
+
+def test_tabs_and_new_systems_render(client):
+    html = client.post('/result', data=FORM).get_data(as_text=True)
+    for tab in ('saju', 'ziwei', 'natal', 'almanac', 'cross'):
+        assert f'id="panel-{tab}"' in html
+    assert html.count('class="zw-cell') == 12
+    assert html.count('class="wh-planet"') == 10
+    assert '본명성' in html and '일백수성' in html
+    assert '토오국' in html and '황소자리' in html
+
+
+def test_time_unknown_new_systems(client):
+    html = client.post('/result', data=dict(FORM, birth_time='', time_unknown='1')).get_data(as_text=True)
+    assert 'class="zw-cell' not in html and '명반을 만들 수 없습니다' in html
+    assert 'class="wh-house' not in html and '정오 기준' in html
+
+
+def test_licenses_page(client):
+    html = client.get('/licenses').get_data(as_text=True)
+    for name in ('lunar-python', 'iztro-py', 'astronomy-engine'):
+        assert name in html
+
+
+def test_evicted_group_charges_quota(client, monkeypatch):
+    monkeypatch.setattr(app_module, 'LIMIT_PER_IP', 1)
+    hdr = {'CF-Connecting-IP': '203.0.113.77'}
+    # 첫 화면: 캐시로 공짜 → 이후 캐시가 밀려나 summary 를 새로 만들어야 하면 그때 1회 차감
+    monkeypatch.setattr(app_module.ai, 'is_cached', lambda ctx, groups=None: groups is None)
+    a = _aid(client.post('/result', data=FORM, headers=hdr).get_data(as_text=True))
+    b = _aid(client.post('/result', data=FORM, headers=hdr).get_data(as_text=True))
+    assert client.post(f'/api/analysis/{a}/summary', headers=hdr).status_code == 200
+    assert client.post(f'/api/analysis/{a}/life', headers=hdr).status_code == 200    # 같은 분석은 추가 차감 없음
+    assert client.post(f'/api/analysis/{b}/summary', headers=hdr).status_code == 429
+
+
+def test_moon_range_when_time_unknown(client):
+    # 2026-10-03 은 하루 사이에 달이 별자리를 옮기는지와 관계없이, 표시가 단정/범위 둘 중 하나로 일관돼야 한다
+    for day in range(1, 15):
+        html = client.post('/result', data=dict(FORM, year='2020', month='1', day=str(day), birth_time='', time_unknown='1')).get_data(as_text=True)
+        assert ('또는' in html.split('<span>달</span>')[1][:200]) or ('자리' in html.split('<span>달</span>')[1][:200])
+    from app import analyze, parse_input
+    import datetime
+    found = False
+    for day in range(1, 29):
+        inp = parse_input(dict(FORM, year='2020', month='2', day=str(day), birth_time='', time_unknown='1'))
+        n = analyze(inp)['natal']
+        if n.get('moon_range'):
+            found = True
+            assert n['moon_range'][0] != n['moon_range'][1]
+    assert found   # 한 달에 두세 번은 하루 안에 달이 별자리를 옮긴다

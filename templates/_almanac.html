@@ -1,0 +1,47 @@
+{# 구성학·택일 탭 #}
+<h2>구성학 본명성</h2>
+<p class="lead">태어난 해와 달의 아홉 별(구성) 가운데 어떤 별 아래 태어났는지 봅니다. 입춘 기준입니다.</p>
+<div class="today-grid">
+  {% for label, s in [('본명성 (태어난 해)', almanac.stars.year), ('월명성 (태어난 달)', almanac.stars.month)] %}
+  <div class="today-card">
+    <h3>{{ label }}</h3>
+    <p class="star-big"><span class="star-num">{{ s.number }}</span>{{ s.name }} <small>{{ s.element }}</small></p>
+    <p>{{ s.desc }}</p>
+  </div>
+  {% endfor %}
+</div>
+
+<h2>택일 — 좋은 날 고르기</h2>
+<p class="lead">앞으로 60일 가운데, 그 일이 좋은 날(宜)이고 황도일이며 {{ almanac.zodiac }}띠와 부딪히지 않는 날을 골랐습니다.</p>
+<div class="picks">
+  {% for key, p in almanac.picks.items() %}
+  <div class="pick">
+    <h3>{{ p.label }}</h3>
+    {% if p.days %}
+    <ul>{% for d in p.days %}<li>{{ d.date.month }}/{{ d.date.day }} ({{ d.weekday }}){% if d.son_eomneun %} <span class="tag tag-son">손없는날</span>{% endif %}</li>{% endfor %}</ul>
+    {% else %}<p class="state">60일 안에 조건에 맞는 날이 없습니다.</p>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<h3 class="sub">30일 달력</h3>
+<div class="table-scroll">
+<table class="data cal">
+  <colgroup><col style="width:72px"><col style="width:52px"><col style="width:70px"><col style="width:56px"><col style="width:44px"><col style="width:72px"><col></colgroup>
+  <thead><tr><th>날짜</th><th>음력</th><th>손없는날</th><th>황도</th><th>건제</th><th>충(띠)</th><th>좋은 일</th></tr></thead>
+  <tbody>
+    {% for d in almanac.days %}
+    <tr class="{{ 'clash' if d.clash_user }}{{ ' good' if d.hwangdo and d.son_eomneun }}">
+      <td>{{ d.date.month }}/{{ d.date.day }} {{ d.weekday }}</td>
+      <td>{{ d.lunar }}</td>
+      <td class="c-tag">{% if d.son_eomneun %}<span class="tag tag-son">손없음</span>{% endif %}</td>
+      <td class="c-tag">{% if d.hwangdo %}<span class="tag tag-good">황도</span>{% else %}<span class="tag">흑도</span>{% endif %}</td>
+      <td class="c-tag">{{ d.zhi_xing }}</td>
+      <td>{{ d.chong }}{% if d.clash_user %} <b class="warn">본인 충</b>{% endif %}</td>
+      <td class="yi">{{ d.yi[:3]|join(', ') }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="chart-note">손없는날은 음력 9·10·19·20·29·30일(한국 민속). 황도·건제·좋은 일(宜)은 중국 택일서 《협기변방서》 계열 규칙이라 다른 달력과 다를 수 있습니다. 중요한 일은 여러 기준을 함께 보세요.</p>

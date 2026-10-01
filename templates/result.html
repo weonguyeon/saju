@@ -30,6 +30,15 @@
   </div>
 </section>
 
+<nav class="tabs" role="tablist" aria-label="보는 방법">
+  <button type="button" role="tab" id="tab-saju" aria-controls="panel-saju" aria-selected="true">사주</button>
+  <button type="button" role="tab" id="tab-ziwei" aria-controls="panel-ziwei" aria-selected="false">자미두수</button>
+  <button type="button" role="tab" id="tab-natal" aria-controls="panel-natal" aria-selected="false">별자리</button>
+  <button type="button" role="tab" id="tab-almanac" aria-controls="panel-almanac" aria-selected="false">택일·구성</button>
+  <button type="button" role="tab" id="tab-cross" aria-controls="panel-cross" aria-selected="false">세 가지 비교</button>
+</nav>
+
+<section class="panel" role="tabpanel" id="panel-saju" aria-labelledby="tab-saju">
 <h2 id="chart">사주 원국</h2>
 <p class="lead">태어난 해·달·날·시를 하늘(천간)과 땅(지지) 글자 여덟 개로 나타낸 표입니다.</p>
 <div class="chart">
@@ -210,11 +219,47 @@
   </dl>
 </div>
 
+</section>
+
+<section class="panel" role="tabpanel" id="panel-ziwei" aria-labelledby="tab-ziwei" hidden>{% include "_ziwei.html" %}</section>
+<section class="panel" role="tabpanel" id="panel-natal" aria-labelledby="tab-natal" hidden>{% include "_natal.html" %}</section>
+<section class="panel" role="tabpanel" id="panel-almanac" aria-labelledby="tab-almanac" hidden>{% include "_almanac.html" %}</section>
+<section class="panel" role="tabpanel" id="panel-cross" aria-labelledby="tab-cross" hidden>{% include "_cross.html" %}</section>
+
 <div class="again"><a class="btn" href="{{ url_for('index') }}">다른 사주 보기</a></div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+(function () {
+  // 탭 — 주소의 #ziwei 같은 해시로도 열린다
+  var tabs = document.querySelectorAll('[role=tab]');
+  function show(id, focus, scroll) {
+    tabs.forEach(function (t) {
+      var on = t.id === 'tab-' + id;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+      if (on && focus) t.focus();
+      if (on && scroll !== false) t.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+  }
+  tabs.forEach(function (t, i) {
+    t.addEventListener('click', function () { var id = t.id.slice(4); show(id); history.replaceState(null, '', '#' + id); });
+    t.addEventListener('keydown', function (e) {
+      var n;
+      if (e.key === 'ArrowRight') n = tabs[(i + 1) % tabs.length];
+      else if (e.key === 'ArrowLeft') n = tabs[(i + tabs.length - 1) % tabs.length];
+      else if (e.key === 'Home') n = tabs[0];
+      else if (e.key === 'End') n = tabs[tabs.length - 1];
+      else return;
+      e.preventDefault();
+      show(n.id.slice(4), true);
+    });
+  });
+  var initial = location.hash.slice(1);
+  show(document.getElementById('tab-' + initial) ? initial : 'saju', false, false);  // 처음 열 때는 화면을 움직이지 않는다
+})();
 (function () {
   // 대운 카드 ↔ 세운 표
   var scroller = document.getElementById('dw-scroll');
@@ -281,6 +326,13 @@
       });
   }
   groups.forEach(load);
+  // 세 가지 비교는 버튼을 눌렀을 때만 만든다
+  var crossBtn = document.getElementById('cross-btn');
+  if (crossBtn) crossBtn.addEventListener('click', function () {
+    crossBtn.hidden = true;
+    document.getElementById('cross-out').hidden = false;
+    load('cross');
+  });
 })();
 </script>
 {% endblock %}

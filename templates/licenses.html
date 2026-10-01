@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}오픈소스 고지 — {{ app_title }}{% endblock %}
+{% block main %}
+<h1 class="intro" style="font-size:1.5rem">오픈소스 고지</h1>
+<p class="intro-sub">이 서비스는 아래 오픈소스 소프트웨어를 사용합니다. 각 라이선스의 고지 조건에 따라 밝힙니다.</p>
+<table class="data">
+  <thead><tr><th>이름</th><th>쓰임</th><th>라이선스</th></tr></thead>
+  <tbody>
+    {% for name, use, lic, url in [
+      ('lunar-python', '음력·절기·간지·구성·택일', 'MIT', 'https://github.com/6tail/lunar-python'),
+      ('iztro-py', '자미두수 명반 (iztro 파이썬 포팅)', 'MIT', 'https://github.com/spyfree/iztro-py'),
+      ('iztro', 'iztro-py 의 원본 알고리즘', 'MIT', 'https://github.com/SylarLong/iztro'),
+      ('astronomy-engine', '행성 위치 (서양 출생차트)', 'MIT', 'https://github.com/cosinekitty/astronomy'),
+      ('LunarCalendar', 'iztro-py 의존성', 'MIT', 'https://github.com/wolfhong/LunarCalendar'),
+      ('ephem (PyEphem)', 'LunarCalendar 의존성', 'MIT', 'https://github.com/brandon-rhodes/pyephem'),
+      ('pydantic', 'iztro-py 의존성', 'MIT', 'https://github.com/pydantic/pydantic'),
+      ('Flask', '웹 서버', 'BSD-3-Clause', 'https://github.com/pallets/flask'),
+      ('gunicorn', '웹 서버 실행', 'MIT', 'https://github.com/benoitc/gunicorn'),
+      ('Pretendard', '본문 글꼴', 'SIL OFL 1.1', 'https://github.com/orioncactus/pretendard'),
+      ('Noto Serif KR', '한자·제목 글꼴', 'SIL OFL 1.1', 'https://fonts.google.com/noto/specimen/Noto+Serif+KR'),
+    ] %}
+    <tr><td><a href="{{ url }}" rel="noopener">{{ name }}</a></td><td>{{ use }}</td><td>{{ lic }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p class="chart-note">손없는날 규칙은 한국민족문화대백과 「손」 항목을 따릅니다. 서양 출생차트 계산은 Swiss Ephemeris 값과 대조해 검증했으며, Swiss Ephemeris 자체는 사용하지 않습니다.</p>
+{% endblock %}

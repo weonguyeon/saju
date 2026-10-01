@@ -1,0 +1,68 @@
+{# 서양 점성술 출생차트 탭 #}
+{% set pl = {} %}{% for p in natal.planets %}{% set _ = pl.update({p.key: p}) %}{% endfor %}
+<h2>별자리 출생차트</h2>
+<p class="lead">태어난 순간 하늘에 있던 해·달·행성의 자리를 그린 서양 점성술 차트입니다.</p>
+<div class="big3">
+  <div class="b3"><span>태양</span><strong>{{ pl.sun.sign.symbol }} {{ pl.sun.sign.name }}</strong><small>나다움, 삶의 방향</small></div>
+  <div class="b3"><span>달</span>{% if natal.moon_range %}<strong>{{ natal.moon_range|join(' 또는 ') }}</strong><small>그날 달이 별자리를 옮겨 시간이 있어야 정해집니다</small>{% else %}<strong>{{ pl.moon.sign.symbol }} {{ pl.moon.sign.name }}</strong><small>감정, 편안함의 조건</small>{% endif %}</div>
+  <div class="b3"><span>상승궁</span>{% if natal.time_unknown %}<strong>?</strong><small>출생 시간이 있어야 정해집니다</small>{% else %}<strong>{{ natal.asc.sign.symbol }} {{ natal.asc.sign.name }}</strong><small>첫인상, 세상을 대하는 방식</small>{% endif %}</div>
+</div>
+
+{% set w = natal.wheel %}
+<figure class="wheel">
+  <svg viewBox="0 0 {{ w.size }} {{ w.size }}" role="img" aria-label="출생차트 원형 그림: 행성 {{ natal.planets|length }}개, 애스펙트 {{ w.lines|length }}개">
+    <circle cx="{{ w.c }}" cy="{{ w.c }}" r="{{ w.r_out }}" class="wh-ring"/>
+    <circle cx="{{ w.c }}" cy="{{ w.c }}" r="{{ w.r_sign }}" class="wh-ring"/>
+    <circle cx="{{ w.c }}" cy="{{ w.c }}" r="{{ w.r_in }}" class="wh-ring wh-inner"/>
+    <circle cx="{{ w.c }}" cy="{{ w.c }}" r="{{ w.r_asp }}" class="wh-ring wh-asp-ring"/>
+    {% for s in w.signs %}
+    <line x1="{{ s.x1 }}" y1="{{ s.y1 }}" x2="{{ s.x2 }}" y2="{{ s.y2 }}" class="wh-tick"/>
+    <text x="{{ s.lx }}" y="{{ s.ly }}" class="wh-sign el-{{ s.element }}"><title>{{ s.name }}</title>{{ s.symbol }}</text>
+    {% endfor %}
+    {% for h in w.houses %}
+    <line x1="{{ h.x1 }}" y1="{{ h.y1 }}" x2="{{ h.x2 }}" y2="{{ h.y2 }}" class="wh-house{{ ' wh-angle' if h.angle }}"/>
+    <text x="{{ h.hx }}" y="{{ h.hy }}" class="wh-hnum">{{ h.n }}</text>
+    {% endfor %}
+    {% for l in w.lines %}<line x1="{{ l.x1 }}" y1="{{ l.y1 }}" x2="{{ l.x2 }}" y2="{{ l.y2 }}" class="wh-asp wh-{{ l.kind }}"/>{% endfor %}
+    {% for p in w.planets %}
+    <line x1="{{ p.lx }}" y1="{{ p.ly }}" x2="{{ p.tx }}" y2="{{ p.ty }}" class="wh-pin"/>
+    <line x1="{{ p.tx }}" y1="{{ p.ty }}" x2="{{ p.kx }}" y2="{{ p.ky }}" class="wh-mark"/>
+    <text x="{{ p.x }}" y="{{ p.y }}" class="wh-planet"><title>{{ p.name }}{{ ' (역행)' if p.retro }}</title>{{ p.symbol }}</text>
+    {% endfor %}
+  </svg>
+  <figcaption>{% if natal.time_unknown %}시간을 몰라 하우스 없이 정오 기준 행성 위치만 그렸습니다.{% else %}왼쪽 굵은 선이 상승궁(1하우스 시작), 위쪽 굵은 선이 MC입니다. 행성 기호에서 이어진 선 끝 눈금이 실제 자리입니다.{% endif %} 안쪽 선은 행성 사이 각도 — 파랑은 조화(트라인·섹스타일), 빨강은 긴장(스퀘어·대립).</figcaption>
+</figure>
+
+<div class="bars-grid">
+  <div>
+    <h3>행성 위치</h3>
+    <table class="data">
+      <thead><tr><th>행성</th><th>자리</th>{% if not natal.time_unknown %}<th>하우스</th>{% endif %}</tr></thead>
+      <tbody>
+        {% for p in natal.planets %}
+        <tr><td>{{ p.symbol }} {{ p.name }}{% if p.retro %} <small class="retro" title="역행">R</small>{% endif %}</td><td>{{ fmt_pos(p.lon) }}</td>{% if not natal.time_unknown %}<td>{{ p.house }}</td>{% endif %}</tr>
+        {% endfor %}
+        {% if not natal.time_unknown %}
+        <tr><td>상승궁 ASC</td><td>{{ fmt_pos(natal.asc.lon) }}</td><td>1</td></tr>
+        <tr><td>천정 MC</td><td>{{ fmt_pos(natal.mc.lon) }}</td><td>10</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+  <div>
+    <h3>원소 분포</h3>
+    {% set maxe = (natal.elements.values()|max) or 1 %}
+    {% for name, cls in [('불', 'fire'), ('흙', 'earth'), ('공기', 'metal'), ('물', 'water')] %}
+    <div class="bar el-{{ cls }}">
+      <span class="name tx">{{ name }}</span>
+      <span class="track"><span class="fill" style="width: {{ (natal.elements[name] / maxe * 100)|round(1) }}%"></span></span>
+      <span class="val">{{ natal.elements[name] }}개</span>
+    </div>
+    {% endfor %}
+    <h3 style="margin-top:20px">주요 각도 (애스펙트)</h3>
+    <ul class="asp-list">
+      {% for a in natal.aspects[:8] %}<li><span class="asp asp-{{ 'hard' if a.name in ('스퀘어', '대립') else 'soft' }}">{{ a.name }}</span> {{ a.a.name }}–{{ a.b.name }} <small>오차 {{ a.orb }}°</small></li>{% endfor %}
+    </ul>
+  </div>
+</div>
+<p class="chart-note">행성 위치는 astronomy-engine으로 계산했고, 하우스는 {{ natal.house_system }} 방식입니다. 출생지는 {{ basis.region }} 대표 좌표로 계산했습니다.</p>

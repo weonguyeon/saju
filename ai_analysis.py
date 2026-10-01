@@ -48,6 +48,20 @@ GROUPS = {
     },
 }
 
+# 세 체계 교차 분석 — 화면에서 버튼을 눌렀을 때만 생성 (claude 호출을 아끼려고 자동 생성 묶음에서 뺀다)
+GROUPS['cross'] = {
+    'keys': ['cross_common', 'cross_diff', 'cross_advice'],
+    'spec': """아래 두 체계의 결과를 위 사주와 나란히 놓고 비교하세요. 값은 이미 계산된 확정값입니다.
+- 자미두수: {ziwei_summary}
+- 서양 점성술 출생차트: {natal_summary}
+- 구성학: {star_summary}
+1. cross_common: [세 체계가 함께 가리키는 것] 사주·자미두수·출생차트가 공통으로 말하는 기질과 흐름 (6~8문장). 각 주장마다 어느 체계의 어떤 요소(예: 사주 일간, 자미 명궁 주성, 출생차트 태양·상승궁)에서 왔는지 괄호로 밝힐 것.
+2. cross_diff: [서로 다르게 말하는 것] 체계마다 다르게 보이는 지점과, 그 차이를 어떻게 이해하면 좋은지 (4~6문장).
+3. cross_advice: [종합 조언] 세 체계를 함께 놓고 본 지금 시기의 현실적인 조언 (4~6문장).
+각 값 안에서 항목(주장)마다 빈 줄 하나로 문단을 나누세요. 한 문단에는 한 가지 주장과 그 근거만 담습니다.""",
+}
+
+
 def _schema(group):
     """묶음별 JSON 스키마 — CLI 구조화 출력으로 따옴표 미이스케이프 같은 깨진 JSON을 막는다"""
     props = {}
@@ -163,10 +177,11 @@ class AIAnalysis:
     def _key(group, ctx):
         return hashlib.sha256(json.dumps([group, ctx], ensure_ascii=False, sort_keys=True).encode()).hexdigest()
 
-    def is_cached(self, ctx):
-        """모든 묶음이 캐시에 있으면 True (사용량 차감 없이 보여줄 수 있음)"""
+    def is_cached(self, ctx, groups=None):
+        """자동 생성 묶음(교차 분석 제외)이 모두 캐시에 있으면 True (사용량 차감 없이 보여줄 수 있음)"""
+        groups = groups or [g for g in GROUPS if g != 'cross']
         with self._lock:
-            return all(self._key(g, ctx) in self._cache for g in GROUPS)
+            return all(self._key(g, ctx) in self._cache for g in groups)
 
     def get_group(self, group, ctx):
         """한 묶음의 해석을 생성 (캐시·중복 요청 합치기 포함). 실패 시 None"""
@@ -214,8 +229,9 @@ class AIAnalysis:
     def get_deep_analysis(self, ctx):
         """모든 묶음을 동시에 생성해 하나로 합친다 (실패한 묶음은 빠진다)"""
         merged = {}
-        with ThreadPoolExecutor(max_workers=len(GROUPS)) as pool:
-            for result in pool.map(lambda g: self.get_group(g, ctx), GROUPS):
+        auto = [g for g in GROUPS if g != 'cross']   # 교차 분석은 버튼으로만
+        with ThreadPoolExecutor(max_workers=len(auto)) as pool:
+            for result in pool.map(lambda g: self.get_group(g, ctx), auto):
                 if result:
                     merged.update(result)
         return merged or None

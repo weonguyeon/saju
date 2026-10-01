@@ -15,6 +15,14 @@ Flask 웹앱. 만세력 계산(`saju_logic.py`) + AI 풀이(`ai_analysis.py`). �
 - 지장간은 국내 표(`HIDDEN_STEMS`) — lunar_python의 중국식 표(자=계 하나)를 쓰지 않는다.
 - 대운 나이는 만 나이(시작일 기준). lunar_python의 나이(虚岁)를 그대로 쓰지 않는다.
 
+## 다른 체계 (2026-10-01 추가)
+- 라이선스: MIT 계열만. AGPL(kerykeion·immanuel·pyswisseph)·GPL·CC-NC·라이선스 없는 레포(py-iztro, kinqimen) 금지. 새 의존성은 /licenses 고지에 추가.
+- 자미두수 = iztro-py. 성별은 '男'/'女'만 받음, 명주·신주·사화는 직접 매핑(STAR_KO·MUTAGEN_KO). 대한 나이는 세는나이.
+- 출생차트 = astronomy-engine + 자체 공식. 기준값은 tests/test_western.py 의 Swiss Ephemeris 숫자(라이브러리는 넣지 않음). 위도는 REGION_LAT.
+- 택일 宜忌는 중국 협기변방서 계열 — 다른 달력과 다를 수 있음을 화면에 표기. 손없는날은 한국 민속 규칙(음력 9·0일).
+- 원형 차트 기호 배치는 _spread(무리 묶어 펼치기). 겹침 회귀 테스트 있음.
+- 교차 분석(cross)은 버튼으로만 생성. 캐시로 공짜로 연 화면에서 cross 를 새로 만들면 charge_once 로 그때 사용량 차감.
+
 ## AI
 - `claude -p --tools "" --setting-sources "" --strict-mcp-config`를 빈 임시 폴더에서 실행 — 도구·훅·CLAUDE.md가 섞이지 않게 한 것이니 유지. `--bare`는 OAuth를 안 읽어 구독 로그인으로는 못 쓴다.
 - 4묶음(summary/life/daewoon/domains) 병렬, 결과 화면은 즉시 렌더 후 `/api/analysis/<id>/<group>`로 채움. 기본 모델 sonnet.

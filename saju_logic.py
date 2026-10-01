@@ -23,6 +23,9 @@ REGIONS = {
     'jeju': ('제주', 126.53),
 }
 DEFAULT_REGION = 'seoul'
+# 출생차트(ASC·하우스)용 위도 — 각 지역 대표 도시
+REGION_LAT = {'seoul': 37.5665, 'chuncheon': 37.8813, 'gangneung': 37.7519, 'daejeon': 36.3504,
+              'jeonju': 35.8242, 'gwangju': 35.1595, 'daegu': 35.8714, 'busan': 35.1796, 'jeju': 33.4996}
 
 TWELVE_STAGES = ['장생', '목욕', '관대', '건록', '제왕', '쇠', '병', '사', '묘', '절', '태', '양']
 # 각 천간의 장생 지지 인덱스 (양간은 순행, 음간은 역행)
@@ -119,6 +122,7 @@ class SajuLogic:
         else:
             clock = local
         return {
+            'utc': utc,
             'utc_offset': aware.utcoffset(),
             'dst': bool(aware.dst()),
             'dst_note': dst_note,

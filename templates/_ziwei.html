@@ -1,0 +1,44 @@
+{# 자미두수 명반 탭 #}
+<h2>자미두수 명반</h2>
+{% if ziwei %}
+<p class="lead">태어난 음력 날짜와 시진으로 열두 궁에 별을 배치한 표입니다. 가운데에서 바깥으로, 명궁(나 자신)부터 읽어 보세요.</p>
+<div class="zw-grid">
+  {% for row in ziwei.grid %}{% set r = loop.index %}
+  {% for p in row %}{% if p %}
+  <div class="zw-cell{{ ' is-soul' if p.is_soul }}{{ ' is-empty' if p.empty }}" style="grid-row: {{ r }}; grid-column: {{ loop.index }}">
+    <div class="zw-head">
+      <span class="zw-name">{{ p.name }}</span>
+      {% if p.is_soul %}<span class="zw-badge">명</span>{% endif %}{% if p.is_body %}<span class="zw-badge body">신</span>{% endif %}
+    </div>
+    <ul class="zw-major">
+      {% for s in p.major %}<li><b>{{ s.name }}</b>{% if s.brightness %}<small>{{ s.brightness }}</small>{% endif %}{% if s.mutagen %}<span class="mut mut-{{ s.mutagen }}">{{ s.mutagen[1] }}</span>{% endif %}</li>{% endfor %}
+      {% if p.empty %}<li class="zw-void">공궁</li>{% endif %}
+    </ul>
+    {% if p.minor %}<p class="zw-minor">{% for s in p.minor %}{{ s.name }}{% if s.mutagen %}<span class="mut mut-{{ s.mutagen }}">{{ s.mutagen[1] }}</span>{% endif %}{{ ' ' if not loop.last }}{% endfor %}</p>{% endif %}
+    <div class="zw-foot"><span>{{ p.ganzhi }}</span><span>{{ p.decadal[0] }}~{{ p.decadal[1] }}</span></div>
+  </div>
+  {% endif %}{% endfor %}
+  {% endfor %}
+  <div class="zw-center" style="grid-row: 2 / 4; grid-column: 2 / 4">
+    <strong>{{ inp.name }}</strong>
+    <span>{{ ziwei.five_elements }}</span>
+    <span>명주 {{ ziwei.soul_star }}, 신주 {{ ziwei.body_star }}</span>
+    <span class="zw-time">{{ ziwei.time_label }}</span>
+    <ul class="zw-mut-list">
+      {% for m in ziwei.mutagens %}<li><span class="mut mut-{{ m.mutagen }}">{{ m.mutagen[1] }}</span>{{ m.star }} → {{ m.palace }}</li>{% endfor %}
+    </ul>
+  </div>
+</div>
+<p class="chart-note">궁 아래 숫자는 그 궁이 맡는 10년 대한의 나이(세는나이)입니다. 별 옆 작은 글자는 밝기(묘·왕·득·리·평·불·함), 색 표시는 사화(록·권·과·기)입니다.</p>
+
+<h3 class="sub">주요 궁 읽기</h3>
+<dl class="zw-read">
+  {% for name, desc in [('명궁', '나 자신의 기질과 평생의 바탕'), ('재백', '돈을 버는 방식과 재물운'), ('관록', '일과 직업, 사회적 성취'), ('부처', '배우자와 연애'), ('천이', '바깥 활동, 이동, 대인 운'), ('질액', '몸의 약한 곳과 건강')] %}
+  {% set p = ziwei.palaces|selectattr('name', 'equalto', name)|first %}
+  <dt>{{ name }} <small>{{ desc }}</small></dt>
+  <dd>{% if p.major %}{% for s in p.major %}{{ s.name }}{% if s.brightness %}({{ s.brightness }}){% endif %}{% if s.mutagen %} {{ s.mutagen }}{% endif %}{{ ', ' if not loop.last }}{% endfor %}{% else %}주성이 없는 공궁 — 맞은편 궁의 별을 빌려 봅니다{% endif %}</dd>
+  {% endfor %}
+</dl>
+{% else %}
+<p class="notice">자미두수는 태어난 시진으로 명궁을 정하기 때문에, 시간을 모르면 명반을 만들 수 없습니다. 시간을 넣고 다시 조회해 주세요.</p>
+{% endif %}

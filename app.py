@@ -8,7 +8,10 @@ from collections import Counter, OrderedDict
 
 from flask import Flask, render_template, request, jsonify, url_for
 
-from saju_logic import SajuLogic, KST, REGIONS, DEFAULT_REGION, ELEMENT_KO, full_age
+from saju_logic import SajuLogic, KST, REGIONS, REGION_LAT, DEFAULT_REGION, ELEMENT_KO, full_age
+from western_logic import natal_chart, fmt_pos, wheel
+from ziwei_logic import build_chart as ziwei_chart
+from almanac_logic import birth_stars, good_days
 from ai_analysis import AIAnalysis, GROUPS, Busy
 
 APP_TITLE = "원구연-무료 사주풀이"
@@ -49,7 +52,8 @@ ASSET_VER = {'style.css': _asset_version('style.css')}
 @app.context_processor
 def inject_globals():
     return {'app_title': APP_TITLE, 'regions': REGIONS, 'element_ko': ELEMENT_KO,
-            'asset_url': lambda name: url_for('static', filename=name, v=ASSET_VER.get(name))}
+            'asset_url': lambda name: url_for('static', filename=name, v=ASSET_VER.get(name)),
+            'fmt_pos': fmt_pos}
 
 
 # ----------------------------------------------------------------------
@@ -265,11 +269,36 @@ def analyze(inp, today=None):
     ai_pillars = dict(pillars)
     if inp['time_unknown']:
         ai_pillars['hour'] = {'gan': '?', 'zhi': '?'}
+    # 자미두수 — 시진이 필요하므로 시간을 모르면 만들지 않는다. 시진은 시주와 같은 보정 시각 기준
+    ziwei = None if inp['time_unknown'] else ziwei_chart(t['clock'], inp['gender'], inp['zishi'])
+
+    # 서양 출생차트 — 시간을 모르면 정오 기준 행성만 (상승궁·하우스는 시각이 있어야 정해진다)
+    natal = natal_chart(t['utc'], REGION_LAT[inp['region']], t['longitude'])
+    natal['time_unknown'] = inp['time_unknown']
+    if inp['time_unknown']:
+        # 달은 하루 약 13° 움직여 그날 안에 별자리가 바뀔 수 있다 — 0시·23시59분 별자리를 함께 본다
+        signs = []
+        for hh, mm in ((0, 0), (23, 59)):
+            u = saju.resolve_time(b.replace(hour=hh, minute=mm), False, inp['region'])['utc']
+            moon = next(p for p in natal_chart(u, REGION_LAT[inp['region']], t['longitude'])['planets'] if p['key'] == 'moon')
+            signs.append(moon['sign']['name'])
+        natal['moon_range'] = signs if signs[0] != signs[1] else None
+    natal['wheel'] = wheel(natal)
+
+    # 구성·택일
+    stars = birth_stars(t['beijing'])
+    days, picks = good_days(today, days=60, user_branch=pillars['year']['zhi_idx'])
+    almanac = {'stars': stars, 'today': days[0], 'days': days[:30], 'picks': picks,
+               'zodiac': saju.zodiac(pillars)}
+
     ctx = ai.build_context(
         inp['name'], inp['gender'], ai_pillars, interp['ohaeng_analysis'], ten_stars_list,
         _dw_label(current), _dw_label(nxt) if nxt else "없음", f"{b.year}년생 (만 {age}세)",
         f"{today.year}년 {today.month}월 {today.day}일",
     )
+    ctx['ziwei_summary'] = _ziwei_summary(ziwei)
+    ctx['natal_summary'] = _natal_summary(natal)
+    ctx['star_summary'] = f"본명성 {stars['year']['name']}, 월명성 {stars['month']['name']}"
     return {
         'pillars': pillars,
         'table': table,
@@ -285,8 +314,44 @@ def analyze(inp, today=None):
         'basis': basis,
         'age': age,
         'zodiac': saju.zodiac(pillars),
+        'ziwei': ziwei,
+        'natal': natal,
+        'almanac': almanac,
         'ai_ctx': ctx,
     }
+
+
+def _ziwei_summary(z):
+    if not z:
+        return "출생 시간을 몰라 자미두수 명반 없음"
+    def stars(p):
+        return ', '.join(s['name'] + (f"({s['brightness']})" if s['brightness'] else '') + (f"[{s['mutagen']}]" if s['mutagen'] else '')
+                         for s in p['major']) or '주성 없음(공궁)'
+    lines = [f"오행국 {z['five_elements']}, 명주 {z['soul_star']}, 신주 {z['body_star']}",
+             f"명궁({z['soul_palace']['ganzhi']}): {stars(z['soul_palace'])}",
+             f"신궁({z['body_palace']['name']}): {stars(z['body_palace'])}"]
+    for name in ('재백', '관록', '부처'):
+        p = next(p for p in z['palaces'] if p['name'] == name)
+        lines.append(f"{name}궁: {stars(p)}")
+    lines.append("사화: " + ', '.join(f"{m['star']} {m['mutagen']}({m['palace']})" for m in z['mutagens']))
+    return '; '.join(lines)
+
+
+def _natal_summary(n):
+    pl = {p['key']: p for p in n['planets']}
+    if n['time_unknown']:
+        moon = (f"달 {' 또는 '.join(n['moon_range'])} (출생 시간 몰라 확정 못 함)" if n.get('moon_range')
+                else f"달 {pl['moon']['sign']['name']} (정오 기준)")
+    else:
+        moon = f"달 {fmt_pos(pl['moon']['lon'])}"
+    parts = [f"태양 {fmt_pos(pl['sun']['lon'])}", moon]
+    if not n['time_unknown']:
+        parts.insert(0, f"상승궁 {fmt_pos(n['asc']['lon'])}")
+        parts.append(f"MC {fmt_pos(n['mc']['lon'])}")
+    parts += [f"{pl[k]['name']} {pl[k]['sign']['name']}" for k in ('mercury', 'venus', 'mars', 'jupiter', 'saturn')]
+    asp = ', '.join(f"{a['a']['name']}-{a['b']['name']} {a['name']}" for a in n['aspects'][:5])
+    el = ', '.join(f"{k} {v}" for k, v in n['elements'].items())
+    return f"{'; '.join(parts)}; 주요 애스펙트: {asp}; 원소 분포: {el}"
 
 
 # ----------------------------------------------------------------------
@@ -329,11 +394,12 @@ class AnalysisStore:
         self._items = OrderedDict()
         self.max_items, self.ttl = max_items, ttl
 
-    def put(self, ctx):
+    def put(self, ctx, charged=False):
         aid = secrets.token_urlsafe(16)
         now = datetime.datetime.now().timestamp()
         with self._lock:
-            self._items[aid] = (now, ctx, Counter())
+            # [생성 시각, 맥락, 묶음별 시도 횟수, 사용량을 냈는지]
+            self._items[aid] = [now, ctx, Counter(), charged]
             while len(self._items) > self.max_items:
                 self._items.popitem(last=False)
         return aid
@@ -353,6 +419,17 @@ class AnalysisStore:
                 return False
             item[2][group] += 1
             return item[2][group] <= MAX_ATTEMPTS
+
+    def charge_once(self, aid, ip):
+        """이 분석에 아직 사용량을 안 냈으면 한 번 차감. 한도 초과면 False"""
+        with self._lock:
+            item = self._items.get(aid)
+            if not item or item[3]:
+                return True
+            if ip is not None and not quota.take(ip):
+                return False
+            item[3] = True
+            return True
 
     def refund(self, aid, group):
         """claude를 실행하지 못하고 돌려보낸 시도(대기 초과)는 횟수에서 뺀다"""
@@ -406,8 +483,10 @@ def result():
     ai_state, analysis_id = 'off', None
     if ai.available:
         ip = client_ip()
-        if ip is None or ai.is_cached(data['ai_ctx']) or quota.take(ip):
-            ai_state, analysis_id = 'on', store.put(data['ai_ctx'])
+        if ip is None or ai.is_cached(data['ai_ctx']):
+            ai_state, analysis_id = 'on', store.put(data['ai_ctx'], charged=ip is None)
+        elif quota.take(ip):
+            ai_state, analysis_id = 'on', store.put(data['ai_ctx'], charged=True)
         else:
             ai_state = 'limited'
 
@@ -417,7 +496,7 @@ def result():
         inp=inp,
         birth_date=b.strftime('%Y-%m-%d'),
         birth_time=None if inp['time_unknown'] else b.strftime('%H:%M'),
-        ai_groups=list(GROUPS),
+        ai_groups=[g for g in GROUPS if g != 'cross'],  # 교차 분석은 버튼으로만
         ai_state=ai_state,
         analysis_id=analysis_id,
         limits={'ip': LIMIT_PER_IP, 'total': LIMIT_TOTAL},
@@ -432,6 +511,9 @@ def api_analysis(analysis_id, group):
     ctx = store.get(analysis_id)
     if ctx is None:
         return jsonify(error="분석 시간이 지났습니다. 처음 화면에서 다시 조회해 주세요."), 410
+    # 캐시로 공짜로 연 화면에서 새로 생성해야 하면(교차 분석, 또는 그사이 캐시에서 밀려난 묶음) 그때 사용량을 낸다
+    if not ai.is_cached(ctx, [group]) and not store.charge_once(analysis_id, client_ip()):
+        return jsonify(error=f"오늘 AI 풀이 제공량(1인 하루 {LIMIT_PER_IP}회)을 모두 썼습니다. 내일 다시 받을 수 있습니다."), 429
     if not store.attempt(analysis_id, group):
         return jsonify(error="이 풀이는 여러 번 실패해 더 시도할 수 없습니다. 처음 화면에서 다시 조회해 주세요."), 429
     try:
@@ -468,6 +550,11 @@ def security_headers(resp):
         "img-src 'self' data:; connect-src 'self' https://cloudflareinsights.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     ))
     return resp
+
+
+@app.route('/licenses')
+def licenses():
+    return render_template('licenses.html')
 
 
 @app.route('/healthz')
