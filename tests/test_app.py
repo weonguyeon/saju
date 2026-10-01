@@ -196,3 +196,10 @@ def test_dst_gap_note(client):
     assert '시계에 없던 시각' in html
     html = client.post('/result', data=dict(FORM, year='1988', month='10', day='9', birth_time='02:30')).get_data(as_text=True)
     assert '두 번 있었던 시각' in html
+
+
+def test_stylesheet_url_is_versioned(client):
+    import hashlib
+    html = client.get('/').get_data(as_text=True)
+    ver = hashlib.sha1(open(app.static_folder + '/style.css', 'rb').read()).hexdigest()[:10]
+    assert f'/static/style.css?v={ver}' in html

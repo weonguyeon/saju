@@ -6,7 +6,7 @@ import threading
 import ipaddress
 from collections import Counter, OrderedDict
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, url_for
 
 from saju_logic import SajuLogic, KST, REGIONS, DEFAULT_REGION, ELEMENT_KO, full_age
 from ai_analysis import AIAnalysis, GROUPS, Busy
@@ -36,9 +36,20 @@ def hanja_filter(ko, kind='gan'):
     return (STEM_HANJA if kind == 'gan' else BRANCH_HANJA).get(ko, ko)
 
 
+def _asset_version(name):
+    # Cloudflare가 정적 파일에 4시간 캐시를 붙이므로, 내용이 바뀌면 주소(?v=)도 바뀌게 한다
+    import hashlib
+    with open(os.path.join(app.static_folder, name), 'rb') as f:
+        return hashlib.sha1(f.read()).hexdigest()[:10]
+
+
+ASSET_VER = {'style.css': _asset_version('style.css')}
+
+
 @app.context_processor
 def inject_globals():
-    return {'app_title': APP_TITLE, 'regions': REGIONS, 'element_ko': ELEMENT_KO}
+    return {'app_title': APP_TITLE, 'regions': REGIONS, 'element_ko': ELEMENT_KO,
+            'asset_url': lambda name: url_for('static', filename=name, v=ASSET_VER.get(name))}
 
 
 # ----------------------------------------------------------------------
