@@ -77,33 +77,39 @@
 <div class="bars-grid">
   <div>
     <h3>오행 분포</h3>
+    <div class="stack" role="img" aria-label="오행 비율 {% for e in elements %}{{ e.ko }} {{ e.count }}개{{ ', ' if not loop.last }}{% endfor %}">
+      {% for e in elements if e.count %}
+      <span class="seg el-{{ e.key }}" style="flex: {{ e.count }}">{{ e.ko[0] }} {{ e.pct|round|int }}%</span>
+      {% endfor %}
+    </div>
     {% set maxc = (elements|map(attribute='count')|max) or 1 %}
     {% for e in elements %}
     <div class="bar el-{{ e.key }}">
       <span class="name tx">{{ e.ko }}</span>
       <span class="track"><span class="fill" style="width: {{ (e.count / maxc * 100)|round(1) }}%"></span></span>
-      <span class="val">{{ e.count }}개 ({{ e.pct|round|int }}%)</span>
+      <span class="val">{{ e.count }}개</span>
     </div>
     {% endfor %}
     <p class="callout">{{ interp.ohaeng_analysis.balance_text }}</p>
   </div>
   <div>
     <h3>십성 분포</h3>
+    <p class="bar-note">막대 색은 그 십성에 해당하는 오행입니다.</p>
     {% set maxg = (god_groups|map(attribute='count')|max) or 1 %}
     {% for g in god_groups %}
-    <div class="bar">
+    <div class="bar el-{{ g.element }}">
       <span class="name">{{ g.name }}</span>
       <span class="track"><span class="fill" style="width: {{ (g.count / maxg * 100)|round(1) }}%"></span></span>
       <span class="val">{{ g.count }}개</span>
     </div>
-    <p class="bar-desc">{% for m, n in g.members %}{{ m }} {{ n }}{{ ', ' if not loop.last }}{% endfor %} — {{ g.desc }}</p>
+    <p class="bar-desc"><span class="tx">{{ g.element_ko }}</span> {% for m, n in g.members %}{{ m }} {{ n }}{{ ', ' if not loop.last }}{% endfor %}<br>{{ g.desc }}</p>
     {% endfor %}
     <div class="callout">
       <strong>{{ strength.label }}</strong>
       <div class="meter" role="img" aria-label="돕는 기운 {{ strength.support }}개, 빼는 기운 {{ strength.drain }}개">
         <span class="a" style="flex: {{ strength.support }}"></span><span class="b" style="flex: {{ strength.drain }}"></span>
       </div>
-      <div class="meter-legend"><span>돕는 기운 {{ strength.support }}개 (나·비겁·인성)</span><span>빼는 기운 {{ strength.drain }}개</span></div>
+      <div class="meter-legend"><span>돕는 기운 {{ strength.support }}개 (나, 비겁, 인성)</span><span>빼는 기운 {{ strength.drain }}개</span></div>
     </div>
   </div>
 </div>

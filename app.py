@@ -18,11 +18,11 @@ saju = SajuLogic()
 ai = AIAnalysis()
 
 GOD_GROUPS = [
-    ('비겁', ['비견', '겁재'], '나와 같은 기운 — 자존감·경쟁·동료'),
-    ('식상', ['식신', '상관'], '내가 낳는 기운 — 표현·재능·활동'),
-    ('재성', ['편재', '정재'], '내가 다스리는 기운 — 재물·현실 감각'),
-    ('관성', ['편관', '정관'], '나를 다스리는 기운 — 책임·명예·조직'),
-    ('인성', ['편인', '정인'], '나를 돕는 기운 — 배움·보호·문서'),
+    ('비겁', ['비견', '겁재'], '자존감, 경쟁, 동료'),
+    ('식상', ['식신', '상관'], '표현, 재능, 활동'),
+    ('재성', ['편재', '정재'], '재물, 현실 감각'),
+    ('관성', ['편관', '정관'], '책임, 명예, 조직'),
+    ('인성', ['편인', '정인'], '배움, 보호, 문서'),
 ]
 ELEMENT_ORDER = ['wood', 'fire', 'earth', 'metal', 'water']
 
@@ -184,9 +184,12 @@ def analyze(inp, today=None):
                 counts[g] += 1
     total_chars = sum(ohaeng.values())
     god_groups = []
-    for gname, members, desc in GOD_GROUPS:
+    me_elem = ELEMENT_ORDER.index(pillars['day']['gan_element'])
+    for offset, (gname, members, desc) in enumerate(GOD_GROUPS):
         n = sum(counts[m] for m in members)
-        god_groups.append({'name': gname, 'desc': desc, 'count': n,
+        # 비겁=같은 오행, 식상=내가 낳는 오행 … 순서가 오행 상생 순서와 같다
+        elem = ELEMENT_ORDER[(me_elem + offset) % 5]
+        god_groups.append({'name': gname, 'desc': desc, 'count': n, 'element': elem, 'element_ko': ELEMENT_KO[elem],
                            'members': [(m, counts[m]) for m in members],
                            'pct': round(n / (total_chars - 1) * 100) if total_chars > 1 else 0})
     support = sum(g['count'] for g in god_groups if g['name'] in ('비겁', '인성')) + 1  # 일간 자신 포함

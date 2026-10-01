@@ -196,12 +196,16 @@ details.options .field { margin-top: 16px; }
 .bars-grid { display: grid; gap: 28px; grid-template-columns: 1fr; }
 @media (min-width: 640px) { .bars-grid { grid-template-columns: 1fr 1fr; } }
 .bars-grid h3 { font-size: 1rem; margin: 0 0 10px; }
-.bar { display: grid; grid-template-columns: 54px 1fr 64px; gap: 10px; align-items: center; margin-bottom: 8px; }
+.bar { display: grid; grid-template-columns: 54px minmax(0, 1fr) 40px; gap: 10px; align-items: center; margin-bottom: 10px; }
 .bar .name { font-weight: 600; font-size: 0.95rem; }
-.bar .track { height: 12px; background: var(--line); border-radius: 6px; overflow: hidden; }
-.bar .fill { height: 100%; background: var(--bg, var(--primary)); border-radius: 6px; }
-.bar .val { text-align: right; font-size: 0.9rem; font-weight: 600; font-variant-numeric: tabular-nums; }
-.bar-desc { font-size: 0.82rem; color: var(--muted); margin: -2px 0 12px 64px; }
+.bar .track { display: block; height: 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+/* span 은 기본이 인라인이라 width·height 가 먹지 않는다 — 반드시 block */
+.bar .fill { display: block; height: 100%; background: var(--bg, var(--primary)); border-radius: 6px; }
+.bar .val { text-align: right; font-size: 0.9rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bar-desc { font-size: 0.82rem; color: var(--muted); margin: -4px 0 12px 64px; line-height: 1.5; }
+.bar-note { font-size: 0.82rem; color: var(--muted); margin: -4px 0 12px; }
+.stack { display: flex; height: 34px; border-radius: 8px; overflow: hidden; margin: 0 0 16px; gap: 2px; }
+.stack .seg { display: flex; align-items: center; justify-content: center; min-width: 0; background: var(--bg); color: var(--fg); font-size: 0.8rem; font-weight: 700; white-space: nowrap; overflow: hidden; }
 .callout { margin-top: 14px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-s); font-size: 0.95rem; }
 .meter { display: flex; height: 10px; border-radius: 5px; overflow: hidden; margin: 8px 0 4px; }
 .meter .a { background: var(--primary); }
@@ -285,3 +289,7 @@ details.options .field { margin-top: 16px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 input[aria-invalid=true], select[aria-invalid=true] { border: 2px solid var(--danger); }
+/* 금(金) 타일색은 연회색이라 트랙과 구분이 안 된다 — 막대 채움만 진한 금색 사용 */
+.bar.el-metal .fill { background: var(--metal-text); }
+.stack .seg { padding: 0 6px; font-size: 0.76rem; }
+.bar { padding-right: 4px; }
