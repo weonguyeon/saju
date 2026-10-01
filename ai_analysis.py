@@ -1,20 +1,35 @@
 import os
 import json
-from openai import OpenAI
+import shutil
+import subprocess
+import tempfile
 from dotenv import load_dotenv
 
 load_dotenv()
 
+SYSTEM_PROMPT = "당신은 현대적 감각을 가진 사주 분석 전문가입니다. 반드시 JSON 형식으로만 답변하며, 값은 항상 문자열이어야 합니다."
+
+
 class AIAnalysis:
     def __init__(self):
-        self.api_key = os.getenv("OPENAI_API_KEY")
-        if self.api_key:
-            self.client = OpenAI(api_key=self.api_key)
+        # AI_BACKEND=claude(기본): 로컬 Claude Code CLI 구독으로 호출 / openai: 기존 GPT-4o API
+        self.backend = os.getenv("AI_BACKEND", "claude").lower()
+        self.client = None
+        if self.backend == "openai":
+            api_key = os.getenv("OPENAI_API_KEY")
+            if api_key:
+                from openai import OpenAI
+                self.client = OpenAI(api_key=api_key)
         else:
-            self.client = None
+            self.claude_bin = os.getenv("CLAUDE_BIN") or shutil.which("claude")
+            self.claude_model = os.getenv("CLAUDE_MODEL")  # 비우면 CLI 기본 모델
+            self.timeout = int(os.getenv("CLAUDE_TIMEOUT", "600"))
 
     def get_deep_analysis(self, name, gender, pillars, ohaeng, ten_stars_list, current_daewun, birth_context):
-        if not self.client:
+        if self.backend == "openai" and not self.client:
+            return None
+        if self.backend != "openai" and not self.claude_bin:
+            print("AI 분석 오류: claude CLI를 찾을 수 없습니다 (CLAUDE_BIN 설정 필요)")
             return None
 
         ohaeng_str = ", ".join([f"{k}({v}%)" for k, v in ohaeng['percentages'].items()])
@@ -66,11 +81,56 @@ class AIAnalysis:
 3. [Context]: 사용자의 연령({birth_context})을 고려하여 현재 가장 고민할 법한 지점을 정확히 짚어주세요.
 """
 
+        if self.backend == "openai":
+            return self._call_openai(prompt)
+        return self._call_claude(prompt)
+
+    def _call_claude(self, prompt):
+        # 도구·설정·MCP를 모두 끄고 텍스트 생성만 하도록 헤드리스 호출 (프롬프트는 stdin으로 전달)
+        cmd = [
+            self.claude_bin, "-p",
+            "--output-format", "json",
+            "--tools", "",
+            "--setting-sources", "",
+            "--strict-mcp-config",
+            "--no-session-persistence",
+            "--system-prompt", SYSTEM_PROMPT + " 코드 블록 없이 JSON 객체 하나만 출력하세요.",
+        ]
+        if self.claude_model:
+            cmd += ["--model", self.claude_model]
+        try:
+            # 프로젝트 폴더의 CLAUDE.md 등이 섞이지 않도록 빈 임시 폴더에서 실행
+            with tempfile.TemporaryDirectory() as cwd:
+                proc = subprocess.run(
+                    cmd, input=prompt, capture_output=True, text=True,
+                    timeout=self.timeout, cwd=cwd,
+                )
+            if proc.returncode != 0:
+                print(f"AI 분석 오류: claude 종료 코드 {proc.returncode}\n{proc.stderr or proc.stdout}")
+                return None
+            envelope = json.loads(proc.stdout)
+            if envelope.get("is_error"):
+                print(f"AI 분석 오류: {envelope.get('result')}")
+                return None
+            return self._parse_json(envelope.get("result", ""))
+        except Exception as e:
+            print(f"AI 분석 오류: {e}")
+            return None
+
+    @staticmethod
+    def _parse_json(text):
+        # 모델이 ```json 펜스나 앞뒤 문장을 붙여도 첫 { ~ 마지막 } 구간만 파싱
+        start, end = text.find("{"), text.rfind("}")
+        if start == -1 or end == -1:
+            raise ValueError("응답에서 JSON 객체를 찾지 못했습니다")
+        return json.loads(text[start:end + 1])
+
+    def _call_openai(self, prompt):
         try:
             response = self.client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
-                    {"role": "system", "content": "당신은 현대적 감각을 가진 사주 분석 전문가입니다. 반드시 JSON 형식으로만 답변하며, 값은 항상 문자열이어야 합니다."},
+                    {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": prompt}
                 ],
                 response_format={ "type": "json_object" },

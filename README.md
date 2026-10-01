@@ -8,7 +8,7 @@
 
 ## 📖 소개
 
-**별하(Byeolha)**는 AI 기반 심층 사주 분석 웹 서비스입니다. 전통 명리학의 사주팔자 계산과 현대적인 GPT-4o AI 분석을 결합하여, 풍부하고 개인화된 운세 분석을 제공합니다.
+**별하(Byeolha)**는 AI 기반 심층 사주 분석 웹 서비스입니다. 전통 명리학의 사주팔자 계산과 현대적인 AI 분석(기본 Claude Code CLI, 선택 GPT-4o)을 결합하여, 풍부하고 개인화된 운세 분석을 제공합니다.
 
 ---
 
@@ -20,7 +20,7 @@
 - **대운 분석**: 10년 주기 8회 = 80년 운세
 - **근묘화실**: 생애 4단계 (초년/청년/중년/말년) 분석
 - **오늘의 운세**: 일간 기반 맞춤 운세
-- **AI 심층 분석**: GPT-4o 기반 장문 해석
+- **AI 심층 분석**: Claude Code CLI(기본) 또는 GPT-4o 기반 장문 해석
 
 ---
 
@@ -28,16 +28,16 @@
 
 ```bash
 # 1. 패키지 설치
-pip install -r requirements.txt
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 
-# 2. API 키 설정
-echo "OPENAI_API_KEY=sk-your-key" > .env
+# 2. AI 연결 — 기본은 로그인된 Claude Code CLI(claude) 구독을 그대로 사용, API 키 불필요
+#    OpenAI로 돌리려면: echo -e "AI_BACKEND=openai\nOPENAI_API_KEY=sk-..." > .env
 
-# 3. 서버 시작
-python app.py
+# 3. 서버 시작 (맥은 5000번을 AirPlay가 쓰므로 5050)
+.venv/bin/python -c "from app import app; app.run(port=5050)"
 
 # 4. 브라우저 접속
-# http://127.0.0.1:5000
+# http://127.0.0.1:5050
 ```
 
 ---
@@ -47,7 +47,7 @@ python app.py
 ```
 ├── app.py              # Flask 메인 앱
 ├── saju_logic.py       # 사주 계산 로직
-├── ai_analysis.py      # GPT-4o AI 분석
+├── ai_analysis.py      # AI 분석 (Claude CLI / GPT-4o)
 ├── requirements.txt    # 의존성
 ├── .env                # API 키
 ├── static/
@@ -77,7 +77,7 @@ python app.py
 ## 🛠️ 기술 스택
 
 - **Backend**: Python Flask
-- **AI**: OpenAI GPT-4o
+- **AI**: Claude Code CLI 헤드리스(`claude -p`, 기본) / OpenAI GPT-4o(선택)
 - **Calendar**: korean-lunar-calendar
 - **Frontend**: HTML5, CSS3, JavaScript
 - **Chart**: Chart.js (레이더 차트)
@@ -98,7 +98,7 @@ python app.py
 ## ⚠️ 주의사항
 
 1. **API 키**: `.env` 파일에 본인의 OpenAI API 키를 설정하세요.
-2. **비용**: GPT-4o API 호출 시 비용이 발생합니다.
+2. **비용**: Claude CLI는 구독 사용량을 씁니다(분석 1회 약 2분). GPT-4o 백엔드는 API 비용이 발생합니다.
 3. **타임아웃**: AI 분석은 최대 120초까지 소요될 수 있습니다.
 
 ---
