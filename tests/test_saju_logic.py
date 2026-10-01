@@ -152,3 +152,11 @@ def test_twelve_stages_match_library_and_hidden_stems():
 def test_year_pillar_of():
     assert s.year_pillar_of(2024)['gan'] + s.year_pillar_of(2024)['zhi'] == '갑진'
     assert s.year_pillar_of(1984)['gan'] + s.year_pillar_of(1984)['zhi'] == '갑자'
+
+
+def test_current_daewoon_none_after_last():
+    lst = _dw('male', datetime.datetime(1900, 1, 1, 12, 0))
+    end = lst[-1]['start_date'].replace(year=lst[-1]['start_date'].year + 10)
+    assert s.current_daewoon(lst, end) is None
+    assert s.current_daewoon(lst, end - datetime.timedelta(days=1)) is lst[-1]
+

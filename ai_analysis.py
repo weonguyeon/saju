@@ -1,4 +1,6 @@
 import os
+import re
+import sys
 import json
 import shutil
 import hashlib
@@ -46,11 +48,24 @@ GROUPS = {
     },
 }
 
+def _schema(group):
+    """묶음별 JSON 스키마 — CLI 구조화 출력으로 따옴표 미이스케이프 같은 깨진 JSON을 막는다"""
+    props = {}
+    for k in GROUPS[group]['keys']:
+        if k == 'gmhs':
+            props[k] = {"type": "object", "additionalProperties": False,
+                        "required": ["year", "month", "day", "hour"],
+                        "properties": {p: {"type": "string"} for p in ["year", "month", "day", "hour"]}}
+        else:
+            props[k] = {"type": "string"}
+    return {"type": "object", "additionalProperties": False, "required": list(props), "properties": props}
+
+
 PROMPT_TEMPLATE = """# Role: 2030 맞춤형 라이프 전략가 & 현대 명리학 마스터
 당신은 사용자의 '{birth_context}'라는 생애 주기적 배경을 깊이 고려하여 조언하는 전문 분석가입니다.
 
 # Input Data (아래 값은 만세력으로 이미 계산된 확정값입니다. 다시 계산하거나 고치지 마세요)
-- 이름: {name}, 성별: {gender}, 나이/생년: {birth_context}
+- 이름: 「{name}」, 성별: {gender}, 나이/생년: {birth_context}
 - 본원(일간): {day_stem}
 - 사주 원국: {pillars_summary}
 - 십신 구성: {ten_stars_list}
@@ -70,6 +85,28 @@ PROMPT_TEMPLATE = """# Role: 2030 맞춤형 라이프 전략가 & 현대 명리�
 
 OHAENG_KO = {'wood': '목', 'fire': '화', 'earth': '토', 'metal': '금', 'water': '수'}
 
+# CLI가 계정 이메일·환경 정보를 맥락에 넣으므로, 방문자가 이름 칸으로 유도해도 새지 않게 출력에서 지운다
+_SCRUB = [
+    re.compile(r"[\w.+-]+@[\w-]+(\.[\w-]+)+"),          # 이메일
+    re.compile(r"\b\d{1,3}(\.\d{1,3}){3}\b"),             # IPv4
+    re.compile(r"(/Users|/private|/home|/tmp|/var)/[^\s\"']*"),  # 로컬 경로
+]
+
+
+class Busy(Exception):
+    """동시 실행 슬롯이 모두 차서 기다리다 포기함"""
+
+
+def log(msg):
+    # gunicorn·nohup 아래에서도 바로 남도록 stderr에 즉시 기록
+    print(f"[ai] {msg}", file=sys.stderr, flush=True)
+
+
+def scrub(text):
+    for pat in _SCRUB:
+        text = pat.sub("(비공개)", text)
+    return text
+
 
 class AIAnalysis:
     def __init__(self):
@@ -84,7 +121,7 @@ class AIAnalysis:
         else:
             self.claude_bin = os.getenv("CLAUDE_BIN") or shutil.which("claude")
             self.claude_model = os.getenv("CLAUDE_MODEL", "sonnet")  # 속도·품질 균형 (opus는 약 2배 느림)
-            self.timeout = int(os.getenv("CLAUDE_TIMEOUT", "300"))
+            self.timeout = int(os.getenv("CLAUDE_TIMEOUT", "100"))
 
         # 같은 사람·같은 날 재조회는 즉시 돌려준다 (메모리 LRU)
         self._cache = OrderedDict()
@@ -93,12 +130,14 @@ class AIAnalysis:
         self._inflight = {}
         # 동시에 도는 claude 프로세스 수 상한 (방문자가 몰려도 서버가 버티도록)
         self._slots = threading.BoundedSemaphore(int(os.getenv("AI_MAX_CONCURRENCY", "8")))
+        # 슬롯 대기 상한 — 대기+생성이 Cloudflare 응답 제한(125초)을 넘지 않게 한다
+        self.slot_wait = float(os.getenv("AI_SLOT_WAIT", "20"))
 
     @property
     def available(self):
         if self.backend == "openai":
             return self.client is not None
-        return bool(self.claude_bin)
+        return bool(self.claude_bin) and os.access(self.claude_bin, os.X_OK)
 
     # ------------------------------------------------------------------
     def build_context(self, name, gender, pillars, ohaeng, ten_stars_list, current_daewun, next_daewun, birth_context, today):
@@ -146,15 +185,21 @@ class AIAnalysis:
 
         if not owner:
             # 같은 요청이 이미 생성 중이면 끝날 때까지 기다렸다가 결과를 나눠 쓴다
-            event.wait(self.timeout if self.backend != "openai" else 180)
+            event.wait(self.slot_wait + (self.timeout if self.backend != "openai" else 180) + 5)
             with self._lock:
                 return self._cache.get(key)
 
         try:
             prompt = PROMPT_TEMPLATE.format(spec=GROUPS[group]['spec'].format(**ctx), **ctx)
-            with self._slots:
-                data = self._call_openai(prompt) if self.backend == "openai" else self._call_claude(prompt)
+            if not self._slots.acquire(timeout=self.slot_wait):
+                raise Busy()
+            try:
+                data = self._call_openai(prompt) if self.backend == "openai" else self._call_claude(prompt, _schema(group))
+            finally:
+                self._slots.release()
             result = self._normalize(group, data) if data else None
+            if data and not result:
+                log(f"{group}: 응답 모양이 예상과 다름 keys={list(data.keys())[:10]}")
             if result:
                 with self._lock:
                     self._cache[key] = result
@@ -182,19 +227,21 @@ class AIAnalysis:
         for k in GROUPS[group]['keys']:
             v = data.get(k)
             if k == 'gmhs':
+                if not isinstance(v, dict) and all(p in data for p in ('year', 'month', 'day')):
+                    v = data  # gmhs 없이 year/month/day/hour 를 바로 준 경우
                 if isinstance(v, dict):
-                    out[k] = {p: str(v.get(p, '')).strip() for p in ['year', 'month', 'day', 'hour'] if v.get(p)}
+                    out[k] = {p: scrub(str(v.get(p, '')).strip()) for p in ['year', 'month', 'day', 'hour'] if v.get(p)}
                 continue
             if isinstance(v, (list, tuple)):
                 v = "\n".join(map(str, v))
             elif isinstance(v, dict):
                 v = "\n".join(str(x) for x in v.values())
             if v:
-                out[k] = str(v).strip()
+                out[k] = scrub(str(v).strip())
         return out or None
 
     # ------------------------------------------------------------------
-    def _call_claude(self, prompt):
+    def _call_claude(self, prompt, schema=None):
         # 도구·설정·MCP를 모두 끄고 텍스트 생성만 하도록 헤드리스 호출 (프롬프트는 stdin으로 전달)
         cmd = [
             self.claude_bin, "-p",
@@ -207,6 +254,8 @@ class AIAnalysis:
         ]
         if self.claude_model:
             cmd += ["--model", self.claude_model]
+        if schema:
+            cmd += ["--json-schema", json.dumps(schema, ensure_ascii=False)]
         try:
             # 프로젝트 폴더의 CLAUDE.md 등이 섞이지 않도록 빈 임시 폴더에서 실행
             with tempfile.TemporaryDirectory() as cwd:
@@ -215,15 +264,22 @@ class AIAnalysis:
                     timeout=self.timeout, cwd=cwd,
                 )
             if proc.returncode != 0:
-                print(f"AI 분석 오류: claude 종료 코드 {proc.returncode}\n{proc.stderr or proc.stdout}")
+                log(f"claude 종료 코드 {proc.returncode}: {(proc.stderr or proc.stdout)[:500]}")
                 return None
             envelope = json.loads(proc.stdout)
             if envelope.get("is_error"):
-                print(f"AI 분석 오류: {envelope.get('result')}")
+                log(f"claude 오류: {str(envelope.get('result'))[:500]}")
                 return None
-            return self._parse_json(envelope.get("result", ""))
+            if isinstance(envelope.get("structured_output"), dict):
+                return envelope["structured_output"]
+            text = envelope.get("result", "")
+            try:
+                return self._parse_json(text)
+            except ValueError as e:
+                log(f"JSON 해석 실패 ({e}): {text[:300]!r}")
+                return None
         except Exception as e:
-            print(f"AI 분석 오류: {e}")
+            log(f"claude 호출 실패: {type(e).__name__}: {e}")
             return None
 
     @staticmethod
@@ -248,5 +304,5 @@ class AIAnalysis:
             )
             return json.loads(response.choices[0].message.content)
         except Exception as e:
-            print(f"AI 분석 오류: {e}")
+            log(f"OpenAI 호출 실패: {type(e).__name__}: {e}")
             return None

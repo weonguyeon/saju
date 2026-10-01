@@ -17,7 +17,7 @@
 ## 빠른 시작
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 PORT=5050 .venv/bin/python app.py      # http://127.0.0.1:5050  (맥 5000번은 AirPlay 점유)
 .venv/bin/python -m pytest -q tests    # 테스트
 ```
@@ -28,9 +28,11 @@ AI 연결은 기본으로 로그인된 Claude Code CLI(`claude -p`)를 씁니다
 |---|---|---|
 | `AI_BACKEND` | `claude` | `openai`면 `OPENAI_API_KEY`로 GPT-4o |
 | `CLAUDE_MODEL` | `sonnet` | 실측: sonnet 약 18초 / opus 약 33초 / haiku 약 91초 (4묶음 병렬, 전체 완료 기준) |
-| `CLAUDE_BIN`, `CLAUDE_TIMEOUT` | PATH의 `claude`, 300초 | |
+| `CLAUDE_BIN`, `CLAUDE_TIMEOUT` | PATH의 `claude`, 100초 | |
+| `AI_SLOT_WAIT` | 20초 | 동시 실행 자리가 없을 때 기다리는 시간. 넘으면 503 후 화면이 자동 재시도 |
 | `AI_MAX_CONCURRENCY` | 8 | 동시에 도는 claude 프로세스 상한 |
-| `RATE_LIMIT_PER_IP`, `RATE_LIMIT_TOTAL` | 5, 200 | 외부 방문자 하루 AI 풀이 횟수. 로컬 직접 접속·캐시 적중은 차감 안 함 |
+| `RATE_LIMIT_PER_IP`, `RATE_LIMIT_TOTAL` | 5, 200 | 외부 방문자 하루 AI 풀이 횟수(IPv6는 /64 단위). 캐시 적중은 차감 안 함 |
+| `TRUST_LOCAL_UNLIMITED` | 1 | 1이면 헤더 없는 로컬 접속은 무제한. 운영(plist)은 0 |
 
 ## 구조
 

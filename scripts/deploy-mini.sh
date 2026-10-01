@@ -21,10 +21,14 @@ OUT=$(ssh -o BatchMode=yes "$MINI" "PORT=$PORT bash -s" <<'REMOTE'
 set -euo pipefail
 cd ~/Developer/saju
 git pull -q --ff-only
-.venv/bin/pip install -q -r requirements.txt
+.venv/bin/pip install -q -r requirements.txt || { echo "PIP_FAILED"; exit 23; }
+CLAUDE_BIN=$(/usr/bin/plutil -extract EnvironmentVariables.CLAUDE_BIN raw deploy/ai.saju.lab2.plist)
+"$CLAUDE_BIN" --version >/dev/null || { echo "CLAUDE_MISSING $CLAUDE_BIN"; exit 24; }
 cp deploy/ai.saju.lab2.plist ~/Library/LaunchAgents/ai.saju.lab2.plist
 launchctl bootout gui/$(id -u)/ai.saju.lab2 2>/dev/null || true
-sleep 1
+# 옛 프로세스가 포트를 놓을 때까지 기다린다 (안 그러면 옛 프로세스의 healthz를 새 것으로 착각)
+for i in $(seq 1 60); do lsof -nP -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1 || break; sleep 1; done
+lsof -nP -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1 && { echo "PORT_BUSY"; exit 25; }
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.saju.lab2.plist
 UP=0
 for i in $(seq 1 30); do
@@ -34,7 +38,7 @@ done
 [ "$UP" = "1" ] || { echo "APP_NOT_UP"; tail -20 ~/Library/Logs/saju-lab2.err.log; exit 22; }
 echo "HEALTH=$(curl -s http://127.0.0.1:$PORT/healthz)"
 echo "INDEX=$(curl -s -o /dev/null -w %{http_code} http://127.0.0.1:$PORT/)"
-git rev-parse HEAD | sed "s/^/DEPLOYED_SHA=/"
+curl -s http://127.0.0.1:$PORT/healthz | /usr/bin/python3 -c 'import json,sys; print("DEPLOYED_SHA=" + (json.load(sys.stdin).get("sha") or ""))'
 REMOTE
 ) || { echo "$OUT"; echo "❌ 원격 배포 실패"; exit 1; }
 

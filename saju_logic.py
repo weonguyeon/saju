@@ -105,6 +105,13 @@ class SajuLogic:
         """
         aware = local.replace(tzinfo=KST)
         utc = aware.astimezone(UTC).replace(tzinfo=None)
+        # 서머타임 전환일의 없는 시각(시계를 앞당긴 1시간)·두 번 있는 시각(되돌린 1시간) 감지
+        roundtrip = aware.astimezone(UTC).astimezone(KST).replace(tzinfo=None)
+        dst_note = None
+        if roundtrip != local:
+            dst_note = 'gap'
+        elif local.replace(tzinfo=KST, fold=1).utcoffset() != aware.utcoffset():
+            dst_note = 'fold'
         beijing = utc + BEIJING_OFFSET
         lon = REGIONS.get(region, REGIONS[DEFAULT_REGION])[1]
         if solar_time:
@@ -114,6 +121,7 @@ class SajuLogic:
         return {
             'utc_offset': aware.utcoffset(),
             'dst': bool(aware.dst()),
+            'dst_note': dst_note,
             'beijing': beijing,
             'clock': clock,
             'longitude': lon,
@@ -247,17 +255,20 @@ class SajuLogic:
 
         반환 항목의 age는 시작 시점의 만 나이, start/end_year는 해당 대운이 걸치는 양력 연도.
         """
-        ec = self._eight_char(self.resolve_time(birth)['beijing'])
+        beijing = self.resolve_time(birth)['beijing']
+        ec = self._eight_char(beijing)
         yun = ec.getYun(1 if gender == 'male' else 0)
         s = yun.getStartSolar()
-        first_start = datetime.date(s.getYear(), s.getMonth(), s.getDay())
+        # 라이브러리는 북경시 날짜에 더하므로, 더한 날수만 한국 생일에 다시 적용한다 (자정~1시 출생의 하루 어긋남 방지)
+        offset = datetime.date(s.getYear(), s.getMonth(), s.getDay()) - beijing.date()
+        first_start = birth.date() + offset
 
         daewoon = []
         for i, dy in enumerate(yun.getDaYun(count + 1)[1:]):
             start = _add_years(first_start, 10 * i)
             pillar = self._to_pillar(dy.getGanZhi())
             daewoon.append({
-                'age': _full_age(birth.date(), start),
+                'age': full_age(birth.date(), start),
                 'start_date': start,
                 'start_year': start.year,
                 'end_year': start.year + 9,
@@ -278,7 +289,7 @@ class SajuLogic:
         """오늘이 속한 대운 (첫 대운 시작 전이면 None)."""
         current = None
         for dw in daewoon_list:
-            if dw['start_date'] <= today:
+            if dw['start_date'] <= today < _add_years(dw['start_date'], 10):
                 current = dw
         return current
 
@@ -397,6 +408,6 @@ def _add_years(d, years):
         return d.replace(year=d.year + years, day=28)
 
 
-def _full_age(birth, on):
+def full_age(birth, on):
     """on 날짜 기준 만 나이"""
     return on.year - birth.year - ((on.month, on.day) < (birth.month, birth.day))

@@ -27,23 +27,33 @@ CFG=~/.cloudflared/config.yml
 if grep -q "hostname: $HOST\$" "$CFG"; then
   echo "ingress 에 $HOST 이미 있음"
 else
-  cp "$CFG" "$CFG.bak-$(date +%Y%m%d-%H%M)-saju"
-  /usr/bin/python3 - "$CFG" "$HOST" "$PORT" <<'PY'
+  # 임시 파일에 고친 뒤 검증을 통과해야만 교체한다 (공유 터널이 깨진 설정을 읽지 않도록)
+  BAK="$CFG.bak-$(date +%Y%m%d-%H%M)-saju"
+  TMP="$CFG.tmp-saju"
+  cp "$CFG" "$BAK"
+  /usr/bin/python3 - "$CFG" "$TMP" "$HOST" "$PORT" <<'PY'
 import sys
-p, host, port = sys.argv[1], sys.argv[2], sys.argv[3]
-s = open(p).read()
+src, dst, host, port = sys.argv[1:5]
+s = open(src).read()
 anchor = "  - service: http_status:404"
 assert s.count(anchor) == 1, "catch-all 줄을 정확히 1개 찾지 못했다"
 add = f"  # 원구연-무료 사주풀이 (saju, {port})\n  - hostname: {host}\n    service: http://localhost:{port}\n"
-open(p, "w").write(s.replace(anchor, add + anchor))
+open(dst, "w").write(s.replace(anchor, add + anchor))
 PY
-  /opt/homebrew/bin/cloudflared tunnel ingress validate
-  launchctl kickstart -k gui/$(id -u)/ai.axcampus.tunnel
+  if /opt/homebrew/bin/cloudflared tunnel --config "$TMP" ingress validate; then
+    mv "$TMP" "$CFG"
+    launchctl kickstart -k gui/$(id -u)/ai.axcampus.tunnel
+  else
+    rm -f "$TMP"; echo "❌ 터널 설정 검증 실패 — 원래 설정 유지"; exit 1
+  fi
 fi
 /opt/homebrew/bin/cloudflared tunnel ingress rule "https://$HOST/" | tail -2
+UP=0
 for i in $(seq 1 30); do
-  curl -sf "http://127.0.0.1:$PORT/healthz" && break; sleep 1
+  if curl -sf "http://127.0.0.1:$PORT/healthz"; then UP=1; break; fi
+  sleep 1
 done
 echo
+[ "$UP" = "1" ] || { echo "❌ 앱이 뜨지 않음"; tail -20 ~/Library/Logs/saju-lab2.err.log; exit 1; }
 grep '^tunnel:' "$CFG"
 REMOTE

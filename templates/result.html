@@ -154,7 +154,7 @@
 <h2 id="today">올해와 오늘</h2>
 <div class="today-grid">
   <div class="today-card">
-    <h3>{{ this_year.year }}년 세운</h3>
+    <h3>올해 세운 <span class="state">입춘 기준</span></h3>
     <div class="pillar">{{ chip(this_year.pillar.gan, this_year.pillar.gan_element, 'gan') }}{{ chip(this_year.pillar.zhi, this_year.pillar.zhi_element, 'zhi') }} <span>{{ this_year.pillar.gan }}{{ this_year.pillar.zhi }}년</span></div>
     <p>천간은 {{ this_year.gan_god }}, 지지는 {{ this_year.zhi_god }}의 기운으로 들어옵니다.</p>
   </div>
@@ -195,7 +195,7 @@
 <div class="basis">
   <dl>
     {% if basis.lunar %}<dt>입력</dt><dd>{{ basis.lunar }} → 양력 {{ b.year }}-{{ '%02d'|format(b.month) }}-{{ '%02d'|format(b.day) }}</dd>{% endif %}
-    <dt>시간대</dt><dd>출생 당시 한국 표준시 {{ basis.utc }}</dd>
+    <dt>시간대</dt><dd>출생 당시 한국 표준시 {{ basis.utc }}{% if basis.dst_note %}. {{ basis.dst_note }}{% endif %}</dd>
     {% if basis.clock %}<dt>시주 기준 시각</dt><dd>{% if basis.solar_time %}{{ basis.region }}(동경 {{ basis.longitude }}°) 태양시 {{ basis.clock }} — 입력 {{ birth_time }}에서 경도·서머타임 보정{% else %}입력 시각 {{ basis.clock }} 그대로 (보정 안 함){% endif %}</dd>{% endif %}
     <dt>연·월 경계</dt><dd>입춘과 각 달의 절입 시각(분 단위) 기준</dd>
     <dt>자시</dt><dd>{{ basis.zishi }}</dd>
@@ -238,14 +238,24 @@
       el.appendChild(p);
     });
   }
+  var tries = {};
   function load(group) {
     var targets = document.querySelectorAll('[data-group="' + group + '"]');
     targets.forEach(function (el) {
       if (!el.dataset.fallback) el.innerHTML = '<span class="skeleton"></span><span class="skeleton"></span><span class="skeleton"></span><span class="state">풀이를 쓰고 있습니다…</span>';
     });
     fetch('/api/analysis/' + encodeURIComponent(analysisId) + '/' + group, { method: 'POST' })
-      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (r) {
+        // 게이트웨이 시간 초과(524 등)는 HTML로 오므로 JSON이 아니면 안내 문구로 바꾼다
+        return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; },
+          function () { return { ok: false, status: r.status, body: { error: '응답이 늦어 풀이를 받지 못했습니다.', retry: true } }; });
+      })
       .then(function (res) {
+        if (!res.ok && res.body.retry && (tries[group] || 0) < 2) {
+          tries[group] = (tries[group] || 0) + 1;
+          setTimeout(function () { load(group); }, 4000 * tries[group]);
+          return;
+        }
         if (!res.ok) throw new Error(res.body.error || '풀이를 불러오지 못했습니다.');
         targets.forEach(function (el) {
           var v = pick(res.body.data, el.dataset.ai);

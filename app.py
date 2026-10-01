@@ -1,14 +1,15 @@
 import os
 import datetime
 import secrets
+import subprocess
 import threading
 import ipaddress
 from collections import Counter, OrderedDict
 
 from flask import Flask, render_template, request, jsonify
 
-from saju_logic import SajuLogic, KST, REGIONS, DEFAULT_REGION, ELEMENT_KO
-from ai_analysis import AIAnalysis, GROUPS
+from saju_logic import SajuLogic, KST, REGIONS, DEFAULT_REGION, ELEMENT_KO, full_age
+from ai_analysis import AIAnalysis, GROUPS, Busy
 
 APP_TITLE = "원구연-무료 사주풀이"
 
@@ -65,11 +66,14 @@ def _flag(src, key, default=False):
 
 def parse_input(src):
     """폼/JSON 입력을 검증해 정리한다. 잘못된 값은 InputError"""
-    name = (src.get('name') or '').strip()
+    name = ' '.join((src.get('name') or '').split())
     if not name:
         raise InputError("이름을 입력해 주세요.", "name")
     if len(name) > 20:
         raise InputError("이름은 20자 이내로 입력해 주세요.", "name")
+    # 이름은 AI 프롬프트에 들어가므로 글자·공백·가운뎃점·하이픈만 받는다
+    if not all(ch.isalpha() or ch in ' ·-' for ch in name):
+        raise InputError("이름에는 글자와 띄어쓰기만 쓸 수 있습니다.", "name")
 
     gender = src.get('gender')
     if gender not in ('male', 'female'):
@@ -81,6 +85,8 @@ def parse_input(src):
     year, month, day = _int(src, 'year', '태어난 해'), _int(src, 'month', '태어난 월'), _int(src, 'day', '태어난 일')
     if not 1900 <= year <= 2100:
         raise InputError("태어난 해는 1900년부터 2100년 사이로 입력해 주세요.", "date")
+    if not (1 <= month <= 12 and 1 <= day <= 31):
+        raise InputError("존재하지 않는 날짜입니다. 생년월일을 확인해 주세요.", "date")
     leap = calendar == 'lunar' and _flag(src, 'leap')
     try:
         if calendar == 'lunar':
@@ -101,6 +107,10 @@ def parse_input(src):
         except ValueError:
             raise InputError("태어난 시간을 입력하거나 '시간 모름'을 선택해 주세요.", "birth_time")
 
+    birth = datetime.datetime.combine(birth_date, birth_time)
+    if birth > datetime.datetime.now(KST).replace(tzinfo=None):
+        raise InputError("아직 오지 않은 날짜입니다. 생년월일을 확인해 주세요.", "date")
+
     zishi = src.get('zishi') or 'split'
     if zishi not in ('split', 'next'):
         raise InputError("자시 처리 방식이 올바르지 않습니다.")
@@ -114,7 +124,7 @@ def parse_input(src):
         'calendar': calendar,
         'leap': leap,
         'input_ymd': (year, month, day),
-        'birth': datetime.datetime.combine(birth_date, birth_time),
+        'birth': birth,
         'time_unknown': time_unknown,
         # 폼에서 온 요청(opts 표시)이면 체크박스가 꺼졌을 때 False, 그 밖에는 보정이 기본
         'solar_time': _flag(src, 'solar_time') if src.get('opts') else _flag(src, 'solar_time', default=True),
@@ -126,10 +136,6 @@ def parse_input(src):
 # ----------------------------------------------------------------------
 # 계산 → 화면용 데이터
 # ----------------------------------------------------------------------
-def _full_age(birth, on):
-    return on.year - birth.year - ((on.month, on.day) < (birth.month, birth.day))
-
-
 def _dw_label(dw):
     if not dw:
         return "대운 시작 전"
@@ -210,7 +216,9 @@ def analyze(inp, today=None):
                           'zhi_god': saju.ten_god_of(day_gan, zhi_idx=yp['zhi_idx']),
                           'current': y == today.year})
         seun.append(years)
-    this_year = saju.year_pillar_of(today.year)
+    # 올해 세운은 입춘 기준 (1월 1일~입춘 전에는 아직 지난해 간지)
+    now = datetime.datetime.now(KST).replace(tzinfo=None)
+    this_year = saju.get_gan_zhi(now.year, now.month, now.day, now.hour, now.minute, solar_time=False)['year']
     this_year_info = {'year': today.year, 'pillar': this_year,
                       'gan_god': saju.ten_god_of(day_gan, gan_idx=this_year['gan_idx']),
                       'zhi_god': saju.ten_god_of(day_gan, zhi_idx=this_year['zhi_idx'])}
@@ -221,6 +229,10 @@ def analyze(inp, today=None):
     off_txt = f"UTC+{off.seconds // 3600}" + (f":{(off.seconds % 3600) // 60:02d}" if off.seconds % 3600 else "")
     basis = {
         'utc': off_txt + (" (서머타임)" if t['dst'] else ""),
+        'dst_note': None if inp['time_unknown'] else {
+            'gap': '서머타임 시작으로 시계에 없던 시각입니다. 표준시로 보고 계산했습니다.',
+            'fold': '서머타임이 끝나며 두 번 있었던 시각입니다. 앞의(서머타임) 시각으로 계산했습니다.',
+        }.get(t['dst_note']),
         'clock': None if inp['time_unknown'] else t['clock'].strftime('%H:%M'),
         'region': REGIONS[inp['region']][0],
         'longitude': t['longitude'],
@@ -234,7 +246,7 @@ def analyze(inp, today=None):
         y, m, d = inp['input_ymd']
         basis['lunar'] = f"음력 {y}년 {'윤' if inp['leap'] else ''}{m}월 {d}일"
 
-    age = _full_age(b.date(), today)
+    age = full_age(b.date(), today)
     ten_stars_list = ", ".join(f"{k} {v}" for k, v in counts.most_common())
     ai_pillars = dict(pillars)
     if inp['time_unknown']:
@@ -268,6 +280,8 @@ def analyze(inp, today=None):
 # ----------------------------------------------------------------------
 LIMIT_PER_IP = int(os.getenv("RATE_LIMIT_PER_IP", "5"))
 LIMIT_TOTAL = int(os.getenv("RATE_LIMIT_TOTAL", "200"))
+MAX_ATTEMPTS = 3          # 분석 ID 하나로 묶음마다 시도할 수 있는 횟수 (실패 재시도 포함)
+TRUST_LOCAL = os.getenv("TRUST_LOCAL_UNLIMITED", "1") == "1"  # 운영(plist)에서는 0
 
 
 class Quota:
@@ -305,7 +319,7 @@ class AnalysisStore:
         aid = secrets.token_urlsafe(16)
         now = datetime.datetime.now().timestamp()
         with self._lock:
-            self._items[aid] = (now, ctx)
+            self._items[aid] = (now, ctx, Counter())
             while len(self._items) > self.max_items:
                 self._items.popitem(last=False)
         return aid
@@ -317,6 +331,22 @@ class AnalysisStore:
             return None
         return item[1]
 
+    def attempt(self, aid, group):
+        """묶음별 시도 횟수를 하나 올리고, 허용 범위면 True"""
+        with self._lock:
+            item = self._items.get(aid)
+            if not item:
+                return False
+            item[2][group] += 1
+            return item[2][group] <= MAX_ATTEMPTS
+
+    def refund(self, aid, group):
+        """claude를 실행하지 못하고 돌려보낸 시도(대기 초과)는 횟수에서 뺀다"""
+        with self._lock:
+            item = self._items.get(aid)
+            if item and item[2][group] > 0:
+                item[2][group] -= 1
+
 
 store = AnalysisStore()
 
@@ -324,15 +354,17 @@ store = AnalysisStore()
 def client_ip():
     """Cloudflare 터널 뒤면 CF-Connecting-IP, 아니면 접속 주소. 로컬 직접 접속은 None(무제한)"""
     cf = request.headers.get('CF-Connecting-IP')
-    if cf:
-        return cf.strip()
-    addr = request.remote_addr or ''
+    addr = (cf or request.remote_addr or '').strip()
     try:
-        if ipaddress.ip_address(addr).is_loopback:
-            return None
+        ip = ipaddress.ip_address(addr)
     except ValueError:
-        pass
-    return addr
+        return addr or 'unknown'
+    if not cf and ip.is_loopback and TRUST_LOCAL:
+        return None
+    if ip.version == 6:
+        # IPv6는 한 사람이 /64 대역 안에서 주소를 쉽게 바꿀 수 있어 대역 단위로 센다
+        return str(ipaddress.ip_network(f"{ip}/64", strict=False))
+    return str(ip)
 
 
 # ----------------------------------------------------------------------
@@ -386,15 +418,46 @@ def api_analysis(analysis_id, group):
     ctx = store.get(analysis_id)
     if ctx is None:
         return jsonify(error="분석 시간이 지났습니다. 처음 화면에서 다시 조회해 주세요."), 410
-    res = ai.get_group(group, ctx)
+    if not store.attempt(analysis_id, group):
+        return jsonify(error="이 풀이는 여러 번 실패해 더 시도할 수 없습니다. 처음 화면에서 다시 조회해 주세요."), 429
+    try:
+        res = ai.get_group(group, ctx)
+    except Busy:
+        store.refund(analysis_id, group)
+        return jsonify(error="지금 풀이를 요청한 분이 많습니다. 잠시 후 다시 불러와 주세요.", retry=True), 503
     if not res:
-        return jsonify(error="AI 해석을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."), 502
+        return jsonify(error="AI 풀이를 만들지 못했습니다. 다시 불러오기를 눌러 주세요.", retry=True), 502
     return jsonify(group=group, data=res)
+
+
+def _git_sha():
+    try:
+        return subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True, timeout=5,
+                              cwd=os.path.dirname(os.path.abspath(__file__))).stdout.strip() or None
+    except Exception:
+        return None
+
+
+GIT_SHA = _git_sha()  # 배포 검증용 — 디스크가 아니라 실행 중인 프로세스의 커밋
+
+
+@app.after_request
+def security_headers(resp):
+    resp.headers.setdefault('X-Frame-Options', 'DENY')
+    resp.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    resp.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    resp.headers.setdefault('Content-Security-Policy', (
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+        "font-src 'self' data: https://cdn.jsdelivr.net https://fonts.gstatic.com; "
+        "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    ))
+    return resp
 
 
 @app.route('/healthz')
 def healthz():
-    return jsonify(ok=True, ai=ai.available)
+    return jsonify(ok=True, ai=ai.available, sha=GIT_SHA)
 
 
 if __name__ == '__main__':
