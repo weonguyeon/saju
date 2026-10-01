@@ -447,10 +447,11 @@ def security_headers(resp):
     resp.headers.setdefault('X-Content-Type-Options', 'nosniff')
     resp.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
     resp.headers.setdefault('Content-Security-Policy', (
-        "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+        # Cloudflare 방문 통계(beacon)는 프록시가 자동으로 넣으므로 허용
+        "default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; "
         "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
         "font-src 'self' data: https://cdn.jsdelivr.net https://fonts.gstatic.com; "
-        "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        "img-src 'self' data:; connect-src 'self' https://cloudflareinsights.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     ))
     return resp
 
