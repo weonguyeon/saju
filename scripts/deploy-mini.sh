@@ -29,7 +29,14 @@ launchctl bootout gui/$(id -u)/ai.saju.lab2 2>/dev/null || true
 # 옛 프로세스가 포트를 놓을 때까지 기다린다 (안 그러면 옛 프로세스의 healthz를 새 것으로 착각)
 for i in $(seq 1 60); do lsof -nP -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1 || break; sleep 1; done
 lsof -nP -iTCP:$PORT -sTCP:LISTEN >/dev/null 2>&1 && { echo "PORT_BUSY"; exit 25; }
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.saju.lab2.plist
+# bootout은 비동기라 서비스 등록이 완전히 풀린 뒤 등록한다 (안 그러면 "Bootstrap failed: 5")
+for i in $(seq 1 30); do launchctl print gui/$(id -u)/ai.saju.lab2 >/dev/null 2>&1 || break; sleep 1; done
+OK=0
+for i in 1 2 3 4 5; do
+  if launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/ai.saju.lab2.plist 2>/dev/null; then OK=1; break; fi
+  sleep 2
+done
+[ "$OK" = "1" ] || { echo "BOOTSTRAP_FAILED"; exit 26; }
 UP=0
 for i in $(seq 1 30); do
   if [ "$(curl -s -o /dev/null -w %{http_code} http://127.0.0.1:$PORT/healthz)" = "200" ]; then UP=1; break; fi

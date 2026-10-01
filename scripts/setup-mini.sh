@@ -21,6 +21,7 @@ git pull -q --ff-only
 PL=~/Library/LaunchAgents/ai.saju.lab2.plist
 cp deploy/ai.saju.lab2.plist "$PL"
 launchctl bootout gui/$(id -u)/ai.saju.lab2 2>/dev/null || true
+for i in $(seq 1 30); do launchctl print gui/$(id -u)/ai.saju.lab2 >/dev/null 2>&1 || break; sleep 1; done
 launchctl bootstrap gui/$(id -u) "$PL"
 
 CFG=~/.cloudflared/config.yml
